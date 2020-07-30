@@ -1,0 +1,10 @@
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
+	url = git@github.com:pybind/pybind11.git
+	branch = v2.3
+[submodule "third_party/json"]
+	path = third_party/json
+	url = https://github.com/nlohmann/json
+[submodule "third_party/cxxopts"]
+	path = third_party/cxxopts
+	url = https://github.com/jarro2783/cxxopts
