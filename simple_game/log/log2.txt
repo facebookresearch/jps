@@ -1,0 +1,47 @@
+Initialize CFR search tree and run it for 1000 iterations.
+Result after CFR 1000 iterations with seed: 1
+CFR Player 1 expected value: 7.99572
+CFR Player 2 expected value: 7.99572
+Initialize search tree..
+Start Building tree ..
+Initialize done. #infoSet: 45, #states: 53
+[0:search]: time: 0.000133 result(*): 9, seq: (p1-c1=1, 0) (p2-c2=1-a=0, 0) #
+[1:search]: time: 0.000201 result(*): 10, seq: (p1-c1=0, 2) (p2-c2=1-a=2, 2) #
+[2:search]: time: 0.000118 result: 10, seq: #
+Final result after 100 iterations with seed: 1
+Search Player 1 expected value: 10
+Search Player 2 expected value: 10
+CFR / CFR pure / Search: 7.99572 8 10
+Player 1 strategy
+p1-c1=0, reach: 0.5
+  0: 0
+  1: 0
+  2: 1
+p1-c1=1, reach: 0.5
+  0: 1
+  1: 0
+  2: 0
+
+Player 2 strategy
+p2-c2=1-a=0, reach: 0.25
+  0: 1
+  1: 0
+  2: 0
+p2-c2=0-a=0, reach: 0.25
+  0: 0
+  1: 0
+  2: 1
+p2-c2=1-a=2, reach: 0.25
+  0: 0
+  1: 0
+  2: 1
+p2-c2=0-a=2, reach: 0.25
+  0: 1
+  1: 0
+  2: 0
+
+Time spent: 0.00229s
+Optimal strategy:
+Evaluating..
+Player 1 optimal value: 10
+Player 2 optimal value: 10
