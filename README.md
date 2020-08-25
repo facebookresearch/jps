@@ -55,10 +55,11 @@ There are a few tabular imperfect information collaborative games implemented:
 + `2suitedbridge`: 2-Suit Mini-Bridge (Def. 3 in the paper)
 + `comm2`: Mini-Hanabi introduced in [BAD paper](https://arxiv.org/abs/1811.01458).
 
-![](./img/tabular.png)
+Result
+[](./img/tabular.png)
 
 Results of sample-based approach
-![](./img/tabular_sampled.png)
+[](./img/tabular_sampled.png)
 
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
