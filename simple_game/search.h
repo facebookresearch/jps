@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 // 
 // 
+
 #pragma once
 
 #include <cassert>
@@ -56,7 +57,7 @@ class InfoSet {
     uniform(strategy_);
     succs_.resize(numAction_);
 
-    if (options_.verbose) {
+    if (options_.verbose == VERBOSE) {
       std::cout << "New InfoSet, key: " << key_ << ", num_action = " << numAction_ 
                 << ", player: " << player_ << std::endl;
     }
@@ -235,6 +236,7 @@ class InfoSet {
 
   // Complete information state.
   States states_;
+
   // succ(I, a) is a collection of information set.
   std::vector<InfoSets> succs_;
   InfoSets allSucc_;
@@ -344,6 +346,10 @@ struct ResultAgg {
   }
 };
 
+struct Stats {
+  float time_states = 0.0f;
+};
+
 struct Analysis {
   ResultAgg terms;
   ResultAgg reachability;
@@ -420,6 +426,15 @@ class State {
     // Update infoSet related information.
     info_->update(*this);
   }
+
+  void setSampleActive(bool b) {
+    sampleActive_ = b;
+    for (const auto& p : children_) {
+      p->setSampleActive(b);
+    }
+  }
+
+  bool sampleActive() const { return sampleActive_; }
 
   void setAlterReach(float alterReach) {
     hasAlterReach_ = true;
@@ -512,6 +527,8 @@ class State {
   std::shared_ptr<State> parent_;
   int parentActionIdx_ = -1;
 
+  bool sampleActive_ = false;
+
   States children_;
 
   Options options_;
@@ -566,6 +583,12 @@ class Manager {
       kv.second->setStrategy(s);
     }
   }
+
+  void setRoot(std::shared_ptr<State> root) {
+    root_ = root;
+  }
+
+  const State &root() const { return *root_; }
 
   void addState(std::shared_ptr<State> s) {
     // Also save it to complete state table.
@@ -628,6 +651,13 @@ class Manager {
   const Options& getOptions() const {
     return options_;
   }
+
+  std::shared_ptr<InfoSet> getInfoSetSharedPtr(const std::string& key) const {
+    auto it = infoSet_.find(key);
+    assert(it != infoSet_.end());
+    return it->second;
+  }
+
   InfoSet& operator[](const std::string& key) {
     auto it = infoSet_.find(key);
     assert(it != infoSet_.end());
@@ -692,6 +722,7 @@ class Manager {
  private:
   std::unordered_map<std::string, std::shared_ptr<InfoSet>> infoSet_;
   std::unordered_map<std::string, std::shared_ptr<State>> states_;
+  std::shared_ptr<State> root_;
   std::vector<InfoSets> infoSetByDepth_;
   const Options options_;
 
@@ -715,12 +746,103 @@ inline InfoSets combineInfoSets(const InfoSets& set1, const InfoSets& set2) {
   return result;
 }
 
+class InfoSetsSampler {
+ public:
+  InfoSetsSampler(Manager &manager)
+    : manager_(manager)
+    , rng_(manager.getOptions().seed) {
+  }
+
+  void setFixedInfoSets(InfoSets &&infoSets) {
+    fixedInfoSets_ = std::move(infoSets);
+  }
+
+  void reset() {
+    const auto &options = manager_.getOptions();
+
+    // Initialize sampledDepth. 
+    if (options.maxDepth > 0) {
+      // Random shuffle an order of [1, manager_.maxDepth() - options_.maxDepth].
+      sampledDepth_ = rela::utils::getIncSeq(manager_.maxDepth() - options.maxDepth, 1);
+      std::shuffle(sampledDepth_.begin(), sampledDepth_.end(), rng_);
+    }
+
+    clearSampledStates();
+  }
+
+  InfoSets sample() {
+    const auto &options = manager_.getOptions();
+
+    InfoSets infoSets;
+    if (!fixedInfoSets_.empty()) {
+      infoSets = fixedInfoSets_;
+    } else { 
+      // Which infoSets we want to use?
+      if (options.maxDepth == 0) {
+        infoSets = manager_.root().infoSet().allSucc();
+      } else {
+        if (sampledDepth_.empty()) return {};
+        int depth = sampledDepth_.back(); 
+        sampledDepth_.pop_back();
+        if (options.verbose != SILENT) {
+          std::cout << "sampled depth = " << depth
+            << ", maxDepth: " << manager_.maxDepth() 
+            << ", maxAllowedSearchDepth: " << options.maxDepth << std::endl; 
+        }
+        infoSets = manager_.getInfoSetsByDepth(depth);
+      }
+    }
+
+    if (options.numSample > 0) {
+      clearSampledStates();
+
+      // sample a few states per infoset and run.
+      for (auto &info : infoSets) {
+        const auto& states = info->states();
+
+        auto seq = rela::utils::getIncSeq(states.size());
+        std::shuffle(seq.begin(), seq.end(), rng_);
+
+        for (int i = 0; i < std::min(options.numSample, (int)states.size()); ++i) {
+          auto &s = states[seq[i]];
+          s->setSampleActive(true);
+          sampledRootStates_.push_back(s);
+        }
+        if (options.verbose == VERBOSE) {
+          std::cout << "Sample: infoSet[" << info->key() << "]: " 
+                    << options.numSample << "/" << states.size() << std::endl;
+        }
+      }
+    }
+    return infoSets;
+  }
+
+ private:
+  Manager &manager_;
+  std::mt19937 rng_;
+  std::vector<int> sampledDepth_;
+  InfoSets fixedInfoSets_;
+
+  States sampledRootStates_;
+
+  void clearSampledStates() {
+    for (auto &s : sampledRootStates_) {
+      s->setSampleActive(false);
+    }
+    sampledRootStates_.clear();
+  }
+};
+
+struct AlgResult {
+  std::vector<float> lastU;
+  float bestSoFar;
+};
+
 class Solver {
  public:
   Solver(const tabular::Options& options)
       : manager_(options)
-      , options_(options)
-      , rng_(options.seed) {
+      , options_(options) {
   }
 
   void init(const rela::Env& g, bool keepEnvInState = false) {
@@ -728,7 +850,10 @@ class Solver {
     auto players = g.spec().players;
     numPlayer_ = players.size();
     root_ = std::make_shared<State>(0, g.completeCompactDesc());
-    std::cout << "Start Building tree .." << std::endl;
+    if (options_.verbose != SILENT) {
+      std::cout << "Start Building tree .." << std::endl;
+    }
+    manager_.setRoot(root_);
     root_->buildTree(root_, manager_, g, keepEnvInState);
   }
 
@@ -776,25 +901,24 @@ class Solver {
     }
   }
 
-  std::vector<float> runSearch(int playerIdx,
-                               int numSamples,
-                               int num_iteration) {
+  AlgResult runSearch(int playerIdx, int numIteration, InfoSetsSampler &sampler) {
     assert(root_->infoSet().isChance());
     float lastBest = 0.0f;
 
-    // Initialize sampledDepth. 
-    if (options_.maxDepth > 0) {
-      // Random shuffle an order of [1, manager_.maxDepth() - options_.maxDepth].
-      sampledDepth_ = rela::utils::getIncSeq(manager_.maxDepth() - options_.maxDepth, 1);
-      std::shuffle(sampledDepth_.begin(), sampledDepth_.end(), rng_);
-    }
+    AlgResult result;
+    result.bestSoFar = std::numeric_limits<float>::lowest();
 
-    for (int k = 0; k < num_iteration; ++k) {
+    sampler.reset();
+
+    for (int k = 0; k < numIteration; ++k) {
+      bool perturbed = false;
       if (options_.perturbChance > 0) {
+        perturbed = true;
         manager_.perturbChance(options_.perturbChance);
       }
 
       if (options_.perturbPolicy > 0) {
+        perturbed = true;
         manager_.perturbPolicy(options_.perturbPolicy);
       }
 
@@ -802,25 +926,36 @@ class Solver {
       const auto& u = root_->u();
 
       float baseScore = u[playerIdx];
-      if (k > 0 && std::abs(baseScore - lastBest) >= 1e-6 && options_.perturbChance == 0 && options_.perturbPolicy == 0) {
-        std::cout << "Potential err! lastBest [" << lastBest << "]" 
-                  << " != baseScore [" << baseScore << "]" << std::endl;
+      if (!perturbed) result.bestSoFar = std::max(result.bestSoFar, baseScore);
+
+      if (k > 0 && std::abs(baseScore - lastBest) >= 1e-6 && options_.numSample == 0 && 
+          options_.perturbChance == 0 && options_.perturbPolicy == 0) {
+        if (options_.verbose != SILENT) {
+          std::cout << "Potential err! lastBest [" << lastBest << "]" 
+            << " != baseScore [" << baseScore << "]" << std::endl;
+        }
+      }
+
+      if (k == 0) {
+        lastBest = baseScore;
+        if (options_.verbose != SILENT) {
+          std::cout << "Score before optimization: " << baseScore << std::endl;
+        }
+      }
+
+      if (options_.numSample > 0) {
+        if (std::abs(baseScore - lastBest) >= 1e-6) {
+          // sampled based approach may estimate score wrong.
+          lastBest = baseScore;
+        } 
+        if (options_.verbose != SILENT) {
+          std::cout << "[" << k << "]: full eval score: " << baseScore << std::endl;
+        }
       }
 
       // Which infoSets we want to use?
-      InfoSets infoSets;
-      if (options_.maxDepth == 0) {
-        infoSets = root_->infoSet().allSucc();
-      } else {
-        // If we run out of sampledDepth_, we stop.
-        if (sampledDepth_.empty()) break;
-        int depth = sampledDepth_.back(); 
-        sampledDepth_.pop_back();
-        std::cout << "[" << k << "]: sampled depth = " << depth
-                  << ", maxDepth: " << manager_.maxDepth() 
-                  << ", maxAllowedSearchDepth: " << options_.maxDepth << std::endl; 
-        infoSets = manager_.getInfoSetsByDepth(depth);
-      }
+      InfoSets infoSets = sampler.sample();
+      if (infoSets.empty()) break;
 
       /*
       if (numSamples > 0) {
@@ -844,13 +979,14 @@ class Solver {
       }
       */
       Analysis analysis;
+      Stats stats;
       auto start = std::chrono::high_resolution_clock::now();
-      auto resultSampling = _search2({}, infoSets, playerIdx, options_.computeReach ? &analysis : nullptr);
+      auto resultSampling = _search2({}, infoSets, playerIdx, options_.computeReach ? &analysis : nullptr, &stats);
       resultSampling.addBias(baseScore);
       auto stop = std::chrono::high_resolution_clock::now();
       float searchTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6; 
 
-      if (options_.verbose) {
+      if (options_.verbose == VERBOSE) {
         std::cout << "candidates from search: " << std::endl
                   << resultSampling.info(manager_) << std::endl;
       }
@@ -863,17 +999,15 @@ class Solver {
         if (options_.showBetter) {
           manager_.printStrategy();
         }
-        if (options_.maxDepth > 0) {
-          // Random shuffle an order of [1, manager_.maxDepth() - options_.maxDepth].
-          sampledDepth_ = rela::utils::getIncSeq(manager_.maxDepth() - options_.maxDepth, 1);
-          std::shuffle(sampledDepth_.begin(), sampledDepth_.end(), rng_);
-        }
+        sampler.reset();
       }
 
-      std::cout << "[" << k << ":search]: time: " << searchTime;
-      if (improved) std::cout << " result(*): "; 
-      else std::cout << " result: ";
-      std::cout << best.info(manager_) << std::endl;
+      if (options_.verbose != SILENT) {
+        std::cout << "[" << k << ":search]: time: " << searchTime << " on states: " << stats.time_states;
+        if (improved) std::cout << " result(*): "; 
+        else std::cout << " result: ";
+        std::cout << best.info(manager_) << std::endl;
+      }
       lastBest = best.value;
 
       if (options_.gtCompute) {
@@ -885,26 +1019,31 @@ class Solver {
         float bruteForceTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6;
 
         auto bestBruteForce = resultBruteForce.getBest();
-        std::cout << "[" << k << ":brute ]: time: " << bruteForceTime << " result: " << bestBruteForce.info(manager_)
-                  << std::endl;
 
-        if (std::abs(bestBruteForce.value - best.value) >= 1e-4) {
-          std::cout << "Warning! search value [" << best.value 
-                    << "] != bruteForce value [" << bestBruteForce.value << "]" << std::endl;
-        }
+        if (options_.verbose != SILENT) {
+          std::cout << "[" << k << ":brute ]: time: " << bruteForceTime << " result: " << bestBruteForce.info(manager_)
+                    << std::endl;
 
-        if (options_.verbose) {
-          std::cout << "Search terms: " << std::endl;
-          std::cout << analysis.terms.info(manager_, false) << std::endl;
+          if (std::abs(bestBruteForce.value - best.value) >= 1e-4) {
+            std::cout << "Warning! search value [" << best.value 
+                      << "] != bruteForce value [" << bestBruteForce.value << "]" << std::endl;
+          }
+
+          if (options_.verbose == VERBOSE) {
+            std::cout << "Search terms: " << std::endl;
+            std::cout << analysis.terms.info(manager_, false) << std::endl;
+          }
         }
 
         if (options_.gtOverride) {
-          std::cout << "Overriding search with bruteForce!" << std::endl;
+          if (options_.verbose != SILENT) {
+            std::cout << "Overriding search with bruteForce!" << std::endl;
+          }
           best = bestBruteForce;
           lastBest = best.value;
         }
 
-        if (options_.verbose) {
+        if (options_.verbose == VERBOSE) {
           std::cout << "candidates from bruteForce: " << std::endl 
                     << resultBruteForce.info(manager_) << std::endl;
         }
@@ -915,7 +1054,7 @@ class Solver {
         }
       }
 
-      if (numSamples == 0 && options_.perturbChance == 0 && best.value == baseScore && options_.maxDepth == 0)
+      if (options_.numSample == 0 && options_.perturbChance == 0 && best.value == baseScore && options_.maxDepth == 0)
         break;
 
       // Change the policy based on best policy.
@@ -925,14 +1064,26 @@ class Solver {
       }
     }
 
+    sampler.reset();
+
     manager_.perturbChance(0);
     evaluate();
-    return root_->u();
+    result.lastU = root_->u();
+    result.bestSoFar = std::max(result.bestSoFar, result.lastU[playerIdx]);
+    return result;
   }
 
   void evaluate() {
     manager_.resetStats();
     root_->propagate(1.0);
+  }
+
+  ResultAgg searchOneIter(const InfoSets& infoSets, int playerIdx) const {
+    return _search2({}, infoSets, playerIdx, nullptr, nullptr);
+  }
+
+  std::vector<float> u() const {
+    return root_->u();
   }
 
   std::string printTree() const {
@@ -957,9 +1108,6 @@ class Solver {
   rela::EnvSpec spec_;
   int numPlayer_;
 
-  mutable std::mt19937 rng_;
-  std::vector<int> sampledDepth_;
-
   std::string printPrefix(const std::vector<Entry> &prefix) const {
     std::stringstream ss;
     for (const auto& pre : prefix) {
@@ -970,23 +1118,29 @@ class Solver {
   }
 
   ResultAgg _search2(const std::vector<Entry> &prefix, const InfoSets& infoSets, 
-      int playerIdx, Analysis *analysis) const {
+      int playerIdx, Analysis *analysis, Stats *stats) const {
     // From seed, iteratively add new infosets until we reach terminal.
     //
     // Preprocessing.
     std::vector<std::vector<float>> f(infoSets.size());
 
+    auto start = std::chrono::high_resolution_clock::now();
     for (int k = 0; k < (int)infoSets.size(); ++k) {
       const auto& info = infoSets[k];
       f[k].resize(info->numAction(), 0);
       // if the policy didn't change, what would be the j1 term?
       // Note this is dependent on upstream policies so we have to compute it
       // here (otherwise we could precompute it)
-      if (options_.verbose) {
+      if (options_.verbose == VERBOSE) {
         std::cout << "=== " << printPrefix(prefix) << ", " << info->key() << " === " << std::endl;
       }
 
       for (const auto& s : info->states()) {
+        if (options_.numSample > 0 && !s->sampleActive()) {
+          // std::cout << "Skipping sample..." << std::endl;
+          continue;
+        }
+
         float alterReach;
         std::string comment;
 
@@ -1032,25 +1186,30 @@ class Solver {
           analysis->reachability.append(Result(prefix2, alterReach, comment));
         }
 
-        if (options_.verbose) {
+        if (options_.verbose == VERBOSE) {
           std::cout << "  " << s->key() << ", alterReach: " << alterReach
                     << ", reach: " << s->totalReach() << ", u: " << s->u()[playerIdx];
         }
       }
 
-      if (options_.verbose) {
+      if (options_.verbose == VERBOSE) {
         std::cout << "J2[" << info->key() << "]: reach: " << info->totalReach()
                   << ", u: " << info->u() << ", q: " << info->q()
                   << ", pi: " << info->strategy() << std::endl;
       }
     }
 
-    if (options_.verbose) {
+    if (options_.verbose == VERBOSE) {
       std::cout << "_search2() summary: " << printPrefix(prefix) << " #infoSets(): " << infoSets.size() << std::endl;
       for (int k = 0; k < (int)infoSets.size(); ++k) {
         const auto& info = infoSets[k];
         std::cout << "  " << info->key() << ", #state: " << info->states().size() << std::endl;
       }
+    }
+
+    if (stats != nullptr) {
+      auto stop = std::chrono::high_resolution_clock::now();
+      stats->time_states += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6; 
     }
 
     ResultAgg result;
@@ -1090,7 +1249,7 @@ class Solver {
                   analysis->terms.append(Result(prefix3, edge));
                 }
 
-                ResultAgg res = _search2(prefix2, nextInfoSets, playerIdx, analysis);
+                ResultAgg res = _search2(prefix2, nextInfoSets, playerIdx, analysis, stats);
                 result.append(res.attach(currPrefix, edge).attach(currPrefix2, 0));
                 info->setPhi(-1);
                 info2->setPhi(-1);
@@ -1112,7 +1271,7 @@ class Solver {
             }
 
             info->setPhi(a);
-            ResultAgg res = _search2(prefix2, info->succ(a), playerIdx, analysis);
+            ResultAgg res = _search2(prefix2, info->succ(a), playerIdx, analysis, stats);
             result.append(res.attach(currPrefix, edge));
             info->setPhi(-1);
           }
@@ -1144,7 +1303,7 @@ class Solver {
       // if the policy didn't change, what would be the j1 term?
       // Note this is dependent on upstream policies so we have to compute it
       // here (otherwise we could precompute it)
-      if (options_.verbose) {
+      if (options_.verbose == VERBOSE) {
         std::cout << "=== " << printPrefix(prefix) << ", " << info->key() << " === " << std::endl;
       }
 
@@ -1200,14 +1359,14 @@ class Solver {
           analysis->reachability.append(Result(prefix2, alterReach, comment));
         }
 
-        if (options_.verbose) {
+        if (options_.verbose == VERBOSE) {
           std::cout << "  " << s->key() << ", alterReach: " << alterReach
                     << ", reach: " << s->totalReach() << ", u: " << s->u()[playerIdx] 
                     << ", j1: " << j1s[k] << ", j3: " << j3s[k] << std::endl;
         }
       }
 
-      if (options_.verbose) {
+      if (options_.verbose == VERBOSE) {
         std::cout << "J2[" << info->key() << "]: reach: " << info->totalReach()
                   << ", u: " << info->u() << ", q: " << info->q()
                   << ", pi: " << info->strategy() << std::endl;
@@ -1216,7 +1375,7 @@ class Solver {
 
     float sumJ1 = std::accumulate(j1s.begin(), j1s.end(), 0.0f);
 
-    if (options_.verbose) {
+    if (options_.verbose == VERBOSE) {
       std::cout << "_search() summary: " << printPrefix(prefix) << " #infoSets(): " << infoSets.size() << std::endl;
       for (int k = 0; k < (int)infoSets.size(); ++k) {
         const auto& info = infoSets[k];
@@ -1331,7 +1490,7 @@ class Solver {
 
     if (options_.maxDepth <= 0 || options_.maxDepth > (int)prefix.size()) {
       for (const auto& infoSet : infoSets) {
-        assert(!infoSet->isChanceNode());
+        assert(!infoSet->isChance());
 
         auto strategy = infoSet->strategy();
 
@@ -1402,7 +1561,7 @@ class Solver {
 
     ResultAgg res;
     for (const auto& infoSet : infoSets) {
-      assert(!infoSet->isChanceNode());
+      assert(!infoSet->isChance());
 
       auto strategy = infoSet->strategy();
       for (int a = 0; a < infoSet->numAction(); ++a) {
