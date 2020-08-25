@@ -2,7 +2,7 @@
 
 Code for "Joint Policy Search for Collaborative Multi-agent Imperfect Information Games". Arxiv [link](https://arxiv.org/abs/2008.06495).
 
-The project aims to find better equilibrium in multi-agent collaborative games by simultaneously changing the policy of multiple agents at the same time. We open source the code to reproduce our results in simple games (see Def. 1-3 in the paper). The pre-trained Bridge model will be released later.
+The project aims to find better equilibrium in multi-agent collaborative games by changing the policy of multiple agents simultaneously. This helps escape local equilibrium where unlaterial improvement of one player's policy is not helpful. We open source the code to reproduce our results in simple games (see Def. 1-3 in the paper). The pre-trained Bridge model will be released later.
 
 ```
 @misc{tian2020jps,
