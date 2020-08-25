@@ -43,10 +43,16 @@ To start, in the `build` directory, run the following to get CFR1k+JPS solution 
 ```
 ./jps --game comm2 --iter 100 --iter_cfr 1000
 ```
+You might run with `--num_samples 1` to get the results for sampled-based version. E.g., run the following to get results of 100 trials:
+```
+
+for i in `seq 1 100`; do ./jps --game comm2 --iter 100 --iter_cfr 1000 --seed $i --num_samples 1; done > aa.txt
+grep "CFRPure" aa.txt
+```
 
 Another example: Simple Bidding (N=16, d=3). Log [here](./simple_game/log/log1.txt).
 ```
-./jps --game simplebidding --seed 1 --iter 100 -N 16 --iter_cfr 1000 --max_depth 3
+./jps --game simplebidding --seed 1 --iter 100 --N_minibridge 16 --iter_cfr 1000 --max_depth 3
 ```
 
 There are a few tabular imperfect information collaborative games implemented:

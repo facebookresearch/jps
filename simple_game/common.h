@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 // 
 // 
+
 #pragma once
 #include <string>
 #include <vector>
@@ -12,13 +13,15 @@
 
 namespace tabular {
 
+enum VerboseLevel { SILENT = 0, NORMAL, VERBOSE };
+
 struct Options {
   std::string method = "search";
   std::string firstRandomInfoSetKey;
   bool computeReach = false;
   bool showBetter = false;
 
-  bool verbose = false;
+  VerboseLevel verbose = NORMAL;
   int seed = 1;
   float exploreFactor = 0.01;
   float alpha = 0.5;
@@ -26,6 +29,7 @@ struct Options {
   float perturbPolicy = 0.0;
 
   int maxDepth = 0;
+  int numSample = 0;
 
   bool gtCompute = false;
   bool gtOverride = false;

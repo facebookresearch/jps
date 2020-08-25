@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 // 
 // 
+
 #include <chrono>
 #include <torch/torch.h>
 
@@ -36,28 +37,36 @@ int main(int argc, char* argv[]) {
     ("gt_override", "Override research with gt result", cxxopts::value<bool>()->default_value("false"))
     ("perturb_chance", "Whether we purturb chance node", cxxopts::value<float>()->default_value("0.0"))
     ("perturb_policy", "Whether we purturb policy", cxxopts::value<float>()->default_value("0.0"))
-    ("verbose", "Verbose", cxxopts::value<bool>()->default_value("false"))
+    ("verbose", "Verbose level", cxxopts::value<int>()->default_value("1"))
     ("compute_reach", "Whether we compute reach", cxxopts::value<bool>()->default_value("false"))
     ("no_opt", "Not compare with optimal strategy", cxxopts::value<bool>()->default_value("false"))
     ("iter", "#Iteration", cxxopts::value<int>()->default_value("100"))
     ("iter_cfr", "#Iteration for cfr", cxxopts::value<int>()->default_value("1000"))
     ("no_cfr_init", "Do not use CFR for initialization", cxxopts::value<bool>()->default_value("false"))
     ("show_better", "whether show better policy when there is improvement", cxxopts::value<bool>()->default_value("false"))
-    ("N", "N in MiniBridge", cxxopts::value<int>()->default_value("3"))
+    ("N,N_minibridge", "N in MiniBridge", cxxopts::value<int>()->default_value("3"))
     ("use_2nd_order", "", cxxopts::value<bool>()->default_value("false"))
     ("max_depth", "Max optimization depth (0 mean till the end)", cxxopts::value<int>()->default_value("0"))
     ("skip_single_infoset_opt", "", cxxopts::value<bool>()->default_value("false"))
     ("skip_same_delta_policy", "", cxxopts::value<bool>()->default_value("false"))
     ("num_samples", "#samples used in each iteration, 0 = use all", cxxopts::value<int>()->default_value("0"));
 
+  std::cout << "Command line: ";
+  for (int i = 0; i < argc; ++i) {
+    std::cout << argv[i] << " ";
+  }
+  std::cout << std::endl;
   auto result = cmdOptions.parse(argc, argv);
+  for (const auto &kv : result.arguments()) {
+    std::cout << kv.key() << ": " << kv.value() << std::endl;
+  }
 
   std::string gameName = result["game"].as<std::string>();
 
   tabular::Options options;
   options.seed = result["seed"].as<int>();
   options.method = result["method"].as<std::string>();
-  options.verbose = result["verbose"].as<bool>();
+  options.verbose = static_cast<tabular::VerboseLevel>(result["verbose"].as<int>());
   options.perturbChance = result["perturb_chance"].as<float>();
   options.perturbPolicy = result["perturb_policy"].as<float>();
   options.firstRandomInfoSetKey =
@@ -71,10 +80,10 @@ int main(int argc, char* argv[]) {
 
   options.skipSingleInfoSetOpt = result["skip_single_infoset_opt"].as<bool>();
   options.skipSameDeltaPolicy = result["skip_same_delta_policy"].as<bool>();
+  options.numSample = result["num_samples"].as<int>();
 
   int numIter = result["iter"].as<int>();
   int numIterCFR = result["iter_cfr"].as<int>();
-  int numSamples = result["num_samples"].as<int>();
   bool noCFRInit = result["no_cfr_init"].as<bool>();
 
   simple::CommOptions gameOptions;
@@ -119,9 +128,10 @@ int main(int argc, char* argv[]) {
   tabular::Policies policies;
   std::vector<float> v;
   std::vector<float> vPure;
+  std::vector<float> vLoaded;
 
   if (!noCFRInit) {
-    tabular::cfr::CFRSolver cfrSolver(options.seed, options.verbose);
+    tabular::cfr::CFRSolver cfrSolver(options.seed, options.verbose == tabular::VerboseLevel::VERBOSE);
     std::cout << "Initialize CFR search tree and run it for " << numIterCFR << " iterations." << std::endl;
     cfrSolver.init(*game);
     v = cfrSolver.run(numIterCFR);
@@ -148,13 +158,16 @@ int main(int argc, char* argv[]) {
   solver.init(*game);
   std::cout << "Initialize done. #infoSet: " << solver.manager().numInfoSets()
             << ", #states: " << solver.manager().numStates() << std::endl;
-  if (options.verbose) {
+  if (options.verbose == tabular::VerboseLevel::VERBOSE) {
     solver.manager().printInfoSetTree();
   }
 
   if (result["load_pi"].count()) {
     auto filename = result["load_pi"].as<std::string>();
+    std::cout << "Loading pi: " << filename << std::endl;
     solver.loadPolicies(filename);
+    solver.evaluate();
+    vLoaded = solver.u();
   } else {
     if (noCFRInit) {
       solver.manager().randomizePolicy();
@@ -163,17 +176,15 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  auto vSearch = solver.runSearch(1, numSamples, numIter);
+  const int playerIdx = 1;
+  auto sampler = tabular::search::InfoSetsSampler(solver.manager());
+  auto searchResult = solver.runSearch(1, numIter, sampler);
 
-  std::cout << "Final result after " << numIter
-            << " iterations with seed: " << options.seed << std::endl;
-  for (int i = 1; i < (int)vSearch.size(); ++i) {
-    std::cout << "Search Player " << i << " expected value: " << vSearch[i] << std::endl;
-  }
-
-  if (!noCFRInit) {
-    std::cout << "CFR / CFR pure / Search: " << v[1] << " " << vPure[1] << " " << vSearch[1] << std::endl;
-  }
+  if (!v.empty()) std::cout << "CFR: " << v[playerIdx] << " ";
+  if (!vPure.empty()) std::cout << "CFRPure: " << vPure[playerIdx] << " ";
+  if (!vLoaded.empty()) std::cout << "Loaded: " << vLoaded[playerIdx] << " ";
+  std::cout << "Search: " << searchResult.bestSoFar << " ";
+  std::cout << std::endl;
 
   solver.manager().printStrategy();
 
@@ -187,7 +198,7 @@ int main(int argc, char* argv[]) {
             << duration_cast<microseconds>(stop - start).count() / 1e6 << "s"
             << std::endl;
 
-  if (options.verbose) {
+  if (options.verbose == tabular::VerboseLevel::VERBOSE) {
     std::cout << solver.printTree() << std::endl;
   }
   //

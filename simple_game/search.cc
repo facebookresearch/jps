@@ -5,6 +5,7 @@
 // LICENSE file in the root directory of this source tree.
 // 
 // 
+
 #include "search.h"
 
 namespace tabular {
@@ -91,7 +92,7 @@ void InfoSet::update(const State& s) {
 }
 
 void State::buildTree(std::shared_ptr<State> own, Manager& manager, const rela::Env& g, bool keepEnvInState) {
-  if (manager.getOptions().verbose) {
+  if (manager.getOptions().verbose == VERBOSE) {
     std::cout << "State: " << g.info() << std::endl;
   }
 
