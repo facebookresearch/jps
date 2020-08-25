@@ -56,10 +56,10 @@ There are a few tabular imperfect information collaborative games implemented:
 + `comm2`: Mini-Hanabi introduced in [BAD paper](https://arxiv.org/abs/1811.01458).
 
 Result
-[](./img/tabular.png)
+![Simple Game Result](./imgs/tabular.png)
 
 Results of sample-based approach
-[](./img/tabular_sampled.png)
+![Sampled-based Result](./imgs/tabular_sampled.png)
 
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
