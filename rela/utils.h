@@ -19,6 +19,7 @@
 
 #include <torch/torch.h>
 
+#include "rela/logging.h"
 #include "rela/types.h"
 
 namespace rela {
@@ -84,113 +85,12 @@ inline TensorDict tensorDictApply(const TensorDict& dict, const Func& func) {
   return output;
 }
 
-inline void verifyTensors(const TensorDict& src, const TensorDict& dest) {
-  if (src.size() != dest.size()) {
-    std::cout << "src.size()[" << src.size() << "] != dest.size()["
-              << dest.size() << "]" << std::endl;
-    std::cout << "src keys: ";
-    for (const auto& p : src)
-      std::cout << p.first << " ";
-    std::cout << "dest keys: ";
-    for (const auto& p : dest)
-      std::cout << p.first << " ";
-    std::cout << std::endl;
-    assert(false);
-  }
+void copyTensors(const TensorDict& src, TensorDict& dst);
 
-  for (const auto& name2tensor : src) {
-    const auto& name = name2tensor.first;
-    const auto& srcTensor = name2tensor.second;
-    // std::cout << "in copy: trying to get: " << name << std::endl;
-    // std::cout << "dest map keys" << std::endl;
-    // printMapKey(dest);
-    const auto& destTensor = dest.at(name);
-    // if (destTensor.sizes() != srcTensor.sizes()) {
-    //   std::cout << "copy size-mismatch: "
-    //             << destTensor.sizes() << ", " << srcTensor.sizes() <<
-    //             std::endl;
-    // }
-    if (destTensor.sizes() != srcTensor.sizes()) {
-      std::cout << name << ", dstSize: " << destTensor.sizes()
-                << ", srcSize: " << srcTensor.sizes() << std::endl;
-      assert(false);
-    }
+void copyTensorsByIndex(const TensorDict& src, TensorDict& dst,
+                        const torch::Tensor& idx);
 
-    if (destTensor.dtype() != srcTensor.dtype()) {
-      std::cout << name << ", dstType: " << destTensor.dtype()
-                << ", srcType: " << srcTensor.dtype() << std::endl;
-      assert(false);
-    }
-  }
-}
-
-inline void copyTensors(const TensorDict& src, TensorDict& dest) {
-  verifyTensors(src, dest);
-  for (const auto& name2tensor : src) {
-    const auto& name = name2tensor.first;
-    const auto& srcTensor = name2tensor.second;
-    // std::cout << "in copy: trying to get: " << name << std::endl;
-    // std::cout << "dest map keys" << std::endl;
-    // printMapKey(dest);
-    auto& destTensor = dest.at(name);
-    // if (destTensor.sizes() != srcTensor.sizes()) {
-    //   std::cout << "copy size-mismatch: "
-    //             << destTensor.sizes() << ", " << srcTensor.sizes() <<
-    //             std::endl;
-    // }
-    destTensor.copy_(srcTensor);
-  }
-}
-
-// // TODO: maybe merge these two functions?
-// inline void copyTensors(
-//     const std::unordered_map<std::string, torch::Tensor>& src,
-//     std::unordered_map<std::string, torch::Tensor>& dest,
-//     std::vector<int64_t>& index) {
-//   assert(src.size() == dest.size());
-//   assert(!index.empty());
-//   torch::Tensor indexTensor =
-//       torch::from_blob(index.data(), {(int64_t)index.size()}, torch::kInt64);
-
-//   for (const auto& name2tensor : src) {
-//     const auto& name = name2tensor.first;
-//     const auto& srcTensor = name2tensor.second;
-//     auto& destTensor = dest.at(name);
-//     // assert(destTensor.sizes() == srcTensor.sizes());
-//     assert(destTensor.dtype() == srcTensor.dtype());
-//     assert(indexTensor.size(0) == srcTensor.size(0));
-//     destTensor.index_copy_(0, indexTensor, srcTensor);
-//   }
-// }
-
-inline void copyTensors(const TensorDict& src,
-                        TensorDict& dest,
-                        const torch::Tensor& index) {
-  assert(src.size() == dest.size());
-  assert(index.size(0) > 0);
-  for (const auto& name2tensor : src) {
-    const auto& name = name2tensor.first;
-    const auto& srcTensor = name2tensor.second;
-    auto& destTensor = dest.at(name);
-    assert(destTensor.dtype() == srcTensor.dtype());
-    assert(index.size(0) == srcTensor.size(0));
-    destTensor.index_copy_(0, index, srcTensor);
-  }
-}
-
-inline bool tensorDictEq(const TensorDict& d0, const TensorDict& d1) {
-  if (d0.size() != d1.size()) {
-    return false;
-  }
-
-  for (const auto& name2tensor : d0) {
-    auto key = name2tensor.first;
-    if ((d1.at(key) != name2tensor.second).all().item<bool>()) {
-      return false;
-    }
-  }
-  return true;
-}
+bool tensorDictEq(const TensorDict& a, const TensorDict& b);
 
 /*
  * indexes into a TensorDict
@@ -203,27 +103,8 @@ inline TensorDict tensorDictIndex(const TensorDict& batch, size_t i) {
   return result;
 }
 
-inline TensorDict tensorDictNarrow(const TensorDict& batch,
-                                   size_t dim,
-                                   size_t i,
-                                   size_t len,
-                                   bool squeeze,
-                                   bool clone) {
-  TensorDict result;
-  for (auto& name2tensor : batch) {
-    auto t = name2tensor.second.narrow(dim, i, len);
-    if (squeeze) {
-      assert(len == 1);
-      t = t.squeeze(dim);
-    }
-    if (clone) {
-      result.insert({name2tensor.first, t.clone()});
-    } else {
-      result.insert({name2tensor.first, std::move(t)});
-    }
-  }
-  return result;
-}
+TensorDict tensorDictNarrow(const TensorDict& dict, int64_t dim, int64_t start,
+                            int64_t len, bool squeeze, bool clone);
 
 inline TensorDict tensorDictSqueeze(const TensorDict& batch, int dim) {
   TensorDict result;
@@ -241,17 +122,6 @@ inline TensorDict tensorDictUnsqueeze(const TensorDict& batch, int dim) {
   return result;
 }
 
-/*
- * Given a TensorVecDict, returns a Tensor that concats them together
- */
-inline TensorDict tensorDictJoin(const TensorVecDict& batch, int stackdim) {
-  TensorDict result;
-  for (auto& name2tensor : batch) {
-    result.insert(
-        {name2tensor.first, torch::stack(name2tensor.second, stackdim)});
-  }
-  return result;
-}
 
 inline TensorDict tensorDictClone(const TensorDict& input) {
   TensorDict output;
@@ -288,20 +158,11 @@ inline void tensorVecDictAppend(TensorVecDict& batch, const TensorDict& input) {
   }
 }
 
-inline TensorDict vectorTensorDictJoin(const std::vector<TensorDict>& vec,
-                                       int stackdim) {
-  assert(vec.size() >= 1);
-  TensorVecDict ret;
-  for (auto& name2tensor : vec[0]) {
-    ret[name2tensor.first] = std::vector<torch::Tensor>();
-  }
-  for (int i = 0; i < (int)vec.size(); ++i) {
-    for (auto& name2tensor : vec[i]) {
-      ret[name2tensor.first].push_back(name2tensor.second);
-    }
-  }
-  return tensorDictJoin(ret, stackdim);
-}
+// Given a TensorVecDict, returns a Tensor that concats them together
+TensorDict tensorDictJoin(const TensorVecDict& dict, int64_t dim);
+
+TensorDict vectorTensorDictJoin(const std::vector<TensorDict>& vec,
+                                int64_t dim);
 
 // utils for convert dict[str, tensor] <-> ivalue
 inline TensorDict iValueToTensorDict(const torch::IValue& value,
@@ -361,13 +222,7 @@ inline std::string printTensorDict(const TensorDict& tensorDict) {
   return ss.str();
 }
 
-inline void appendTensorDict(TensorDict& t1, const TensorDict& t2) {
-  for (const auto& k2v : t2) {
-    auto r = t1.insert(k2v);
-    (void)r;
-    assert(r.second);
-  }
-}
+void appendTensorDict(TensorDict& dict, const TensorDict& add);
 
 inline TensorDict splitTensorDict(TensorDict& t, char prefix) {
   TensorDict d;
@@ -408,6 +263,11 @@ inline TensorDict combineTensorDictArgs(const TensorDict& d1,
   return res;
 }
 
+inline bool hasKey(const TensorDict& tensorDict, const std::string& key) {
+  auto it = tensorDict.find(key);
+  return it != tensorDict.end();
+}
+
 inline const torch::Tensor& get(const TensorDict& tensorDict,
                                 const std::string& key) {
   auto it = tensorDict.find(key);
@@ -419,25 +279,18 @@ inline const torch::Tensor& get(const TensorDict& tensorDict,
 }
 
 template <typename T>
-T getTensorDictScalar(const rela::TensorDict& d, const std::string& key) {
-  auto it = d.find(key);
-  if (it == d.end()) {
+T getTensorDictScalar(const TensorDict& dict, const std::string& key) {
+  const auto it = dict.find(key);
+  if (it == dict.cend()) {
     std::cout << "key: " << key << " not found!" << std::endl;
-    std::cout << printTensorDict(d);
+    std::cout << printTensorDict(dict);
   }
-  assert(it != d.end());
-  assert(it->second.dim() == 1);
-  assert(it->second.size(0) == 1);
+  RELA_CHECK(it != dict.cend());
+  RELA_CHECK_EQ(it->second.numel(), 1);
   return it->second.item<T>();
 }
 
-inline std::vector<int> getTensorSize(const rela::TensorDict& d,
-                                      const std::string& key) {
-  const auto it = d.find(key);
-  assert(it != d.end());
-  const auto sizes = it->second.sizes();
-  return std::vector<int>(sizes.cbegin(), sizes.cend());
-}
+std::vector<int> getTensorSize(const TensorDict& dict, const std::string& key);
 
 template <typename T>
 inline TensorDict setTensorDictScalar(const std::string& key, T val) {
@@ -449,16 +302,45 @@ inline TensorDict setTensorDictScalar(const std::string& key, T val) {
 
 inline std::vector<int> getIncSeq(int N, int start = 0) {
   std::vector<int> seq(N);
-  // Everything is legal.
   std::iota(seq.begin(), seq.end(), start);
   return seq;
 }
+
+inline std::vector<std::pair<int, std::string>> intSeq2intStrSeq(const std::vector<int>& seq) {
+  std::vector<std::pair<int, std::string>> res(seq.size());
+  for (size_t i = 0; i < seq.size(); ++i) {
+    res[i].first = seq[i];
+    res[i].second = std::to_string(seq[i]);
+  }
+  return res;
+}
+
+template <typename T, typename S>
+inline std::vector<T> pickFirst(const std::vector<std::pair<T, S>>& seq) {
+  std::vector<T> res(seq.size());
+  for (size_t i = 0; i < seq.size(); ++i) {
+    res[i] = seq[i].first;
+  }
+  return res;
+}
+
+template <typename T, typename S>
+inline std::vector<S> pickSecond(const std::vector<std::pair<T, S>>& seq) {
+  std::vector<S> res(seq.size());
+  for (size_t i = 0; i < seq.size(); ++i) {
+    res[i] = seq[i].second;
+  }
+  return res;
+}
+
+std::pair<float, int> getMaxProb(const TensorDict& reply, const std::string& key);
 
 std::vector<std::pair<float, int>> getSortedProb(const TensorDict& reply,
                                                  const std::string& key,
                                                  float threshold);
 
 std::vector<float> getVectorSel(const TensorDict& reply, const std::string& key, const std::vector<int> &sel);
+std::vector<std::pair<float, int>> getVectorSelPair(const TensorDict& reply, const std::string& key, const std::vector<int>& sel);
 
 }  // namespace utils
 }  // namespace rela
