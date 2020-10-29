@@ -67,6 +67,25 @@ Result
 Results of sample-based approach
 ![Sampled-based Result](./imgs/tabular_sampled.png)
 
+## Visualize policy (for simple bidding)
+In `build` folder, do:
+
+```
+./jps --game=simplebidding --N_minibridge=4 --seed=2 > aa.txt
+python ../load_strategies.py --log aa.txt
+```
+
+The output is:
+```
+Optimal policies
+score: 2.1875
+        0       1        2        3
+0  10 (0)  10 (1)  120 (2)  120 (2)
+1  20 (0)  20 (2)   20 (2)  230 (4)
+2  20 (2)  20 (2)   20 (2)  230 (4)
+3  30 (0)  30 (4)   30 (4)   30 (4)
+```
+
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
