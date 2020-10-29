@@ -1,0 +1,32 @@
+[
+  {
+    "match": "Loaded: ([-\\d\\.]+)",
+    "action": [
+      [ "\"load_reward\"", "float(m.group(1))" ]
+    ]
+  },
+  {
+    "match": "Search: ([-\\d\\.]+)",
+    "action": [
+      [ "\"search_reward\"", "float(m.group(1))" ]
+    ]
+  },
+  {
+    "match": "CFR: ([-\\d\\.]+)",
+    "action": [
+      [ "\"cfr_reward\"", "float(m.group(1))" ]
+    ]
+  },
+  {
+    "match": "CFRPure: ([-\\d\\.]+)",
+    "action": [
+      [ "\"cfr_pure_reward\"", "float(m.group(1))" ]
+    ]
+  },
+  { 
+    "match": "full eval score: ([\\d\\.]+)",
+    "action": [
+      [ "\"full_eval\"", "float(m.group(1))" ]
+    ]
+  }
+]
