@@ -4,7 +4,6 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
 
 #include <chrono>
 #include <torch/torch.h>
@@ -12,12 +11,17 @@
 #include "comm.h"
 #include "comm2.h"
 #include "cxxopts/include/cxxopts.hpp"
+#include "game_utils.h"
 #include "kuhn.h"
 #include "simple_bidding.h"
+#include "simple_hanabi.h"
 #include "two_suited_bridge.h"
 
 #include "cfr_opt.h"
 #include "search.h"
+
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
 
 using namespace std::chrono;
 
@@ -25,31 +29,80 @@ int main(int argc, char* argv[]) {
   cxxopts::Options cmdOptions(
       "Tabular Game Solver", "Simple Game Solver for Tabular Games");
 
-  cmdOptions.add_options()
-    ("g,game", "Game Name", cxxopts::value<std::string>()->default_value("comm"))
-    ("method", "Name of method", cxxopts::value<std::string>()->default_value("search"))
-    ("load_pi", "Load policy", cxxopts::value<std::string>())
-    ("num_round", "#round for comm", cxxopts::value<int>()->default_value("4"))
-    ("num_card", "#card for comm", cxxopts::value<int>()->default_value("-1"))
-    ("seed", "Random Seed", cxxopts::value<int>()->default_value("1"))
-    ("first_random_infoset", "Random Seed", cxxopts::value<std::string>()->default_value(""))
-    ("gt_compute", "Compute exhaustive search", cxxopts::value<bool>()->default_value("false"))
-    ("gt_override", "Override research with gt result", cxxopts::value<bool>()->default_value("false"))
-    ("perturb_chance", "Whether we purturb chance node", cxxopts::value<float>()->default_value("0.0"))
-    ("perturb_policy", "Whether we purturb policy", cxxopts::value<float>()->default_value("0.0"))
-    ("verbose", "Verbose level", cxxopts::value<int>()->default_value("1"))
-    ("compute_reach", "Whether we compute reach", cxxopts::value<bool>()->default_value("false"))
-    ("no_opt", "Not compare with optimal strategy", cxxopts::value<bool>()->default_value("false"))
-    ("iter", "#Iteration", cxxopts::value<int>()->default_value("100"))
-    ("iter_cfr", "#Iteration for cfr", cxxopts::value<int>()->default_value("1000"))
-    ("no_cfr_init", "Do not use CFR for initialization", cxxopts::value<bool>()->default_value("false"))
-    ("show_better", "whether show better policy when there is improvement", cxxopts::value<bool>()->default_value("false"))
-    ("N,N_minibridge", "N in MiniBridge", cxxopts::value<int>()->default_value("3"))
-    ("use_2nd_order", "", cxxopts::value<bool>()->default_value("false"))
-    ("max_depth", "Max optimization depth (0 mean till the end)", cxxopts::value<int>()->default_value("0"))
-    ("skip_single_infoset_opt", "", cxxopts::value<bool>()->default_value("false"))
-    ("skip_same_delta_policy", "", cxxopts::value<bool>()->default_value("false"))
-    ("num_samples", "#samples used in each iteration, 0 = use all", cxxopts::value<int>()->default_value("0"));
+  cmdOptions.add_options()(
+      "g,game",
+      "Game Name",
+      cxxopts::value<std::string>()->default_value("comm"))(
+      "method",
+      "Name of method",
+      cxxopts::value<std::string>()->default_value("search"))(
+      "load_pi", "Load policy", cxxopts::value<std::string>())(
+      "load_pi_log", "Load policy from log", cxxopts::value<std::string>())(
+      "num_round",
+      "#round for comm",
+      cxxopts::value<int>()->default_value("4"))(
+      "num_card", "#card for comm", cxxopts::value<int>()->default_value("-1"))(
+      "seed", "Random Seed", cxxopts::value<int>()->default_value("1"))(
+      "first_random_infoset",
+      "Random Seed",
+      cxxopts::value<std::string>()->default_value(""))(
+      "gt_compute",
+      "Compute exhaustive search",
+      cxxopts::value<bool>()->default_value("false"))(
+      "gt_override",
+      "Override research with gt result",
+      cxxopts::value<bool>()->default_value("false"))(
+      "perturb_chance",
+      "Whether we purturb chance node",
+      cxxopts::value<float>()->default_value("0.0"))(
+      "perturb_policy",
+      "Whether we purturb policy",
+      cxxopts::value<float>()->default_value("0.0"))(
+      "verbose", "Verbose level", cxxopts::value<int>()->default_value("1"))(
+      "compute_reach",
+      "Whether we compute reach",
+      cxxopts::value<bool>()->default_value("false"))(
+      "no_opt",
+      "Not compare with optimal strategy",
+      cxxopts::value<bool>()->default_value("false"))(
+      "iter", "#Iteration", cxxopts::value<int>()->default_value("100"))(
+      "iter_cfr",
+      "#Iteration for cfr",
+      cxxopts::value<int>()->default_value("1000"))(
+      "no_cfr_init",
+      "Do not use CFR for initialization",
+      cxxopts::value<bool>()->default_value("false"))(
+      "use_cfr_pure_init",
+      "Use CFR pure strategy to init",
+      cxxopts::value<bool>()->default_value("false"))(
+      "dump_json",
+      "Save strategy to JSON.",
+      cxxopts::value<bool>()->default_value("false"))(
+      "print_strategy_before_search",
+      "Print Strategy Before Search",
+      cxxopts::value<bool>()->default_value("false"))(
+      "show_better",
+      "whether show better policy when there is improvement",
+      cxxopts::value<bool>()->default_value("false"))(
+      "N,N_minibridge",
+      "N in MiniBridge",
+      cxxopts::value<int>()->default_value("3"))(
+      "use_2nd_order", "", cxxopts::value<bool>()->default_value("false"))(
+      "max_depth",
+      "Max optimization depth (0 mean till the end)",
+      cxxopts::value<int>()->default_value("0"))(
+      "skip_single_infoset_opt",
+      "",
+      cxxopts::value<bool>()->default_value("false"))(
+      "skip_same_delta_policy",
+      "",
+      cxxopts::value<bool>()->default_value("false"))(
+      "num_samples",
+      "#samples per infoset used in each iteration, 0 = use all",
+      cxxopts::value<int>()->default_value("0"))(
+      "num_samples_total",
+      "#total number of samples across all infoset. 0 = not used",
+      cxxopts::value<int>()->default_value("0"));
 
   std::cout << "Command line: ";
   for (int i = 0; i < argc; ++i) {
@@ -57,7 +110,7 @@ int main(int argc, char* argv[]) {
   }
   std::cout << std::endl;
   auto result = cmdOptions.parse(argc, argv);
-  for (const auto &kv : result.arguments()) {
+  for (const auto& kv : result.arguments()) {
     std::cout << kv.key() << ": " << kv.value() << std::endl;
   }
 
@@ -66,7 +119,8 @@ int main(int argc, char* argv[]) {
   tabular::Options options;
   options.seed = result["seed"].as<int>();
   options.method = result["method"].as<std::string>();
-  options.verbose = static_cast<tabular::VerboseLevel>(result["verbose"].as<int>());
+  options.verbose =
+      static_cast<tabular::VerboseLevel>(result["verbose"].as<int>());
   options.perturbChance = result["perturb_chance"].as<float>();
   options.perturbPolicy = result["perturb_policy"].as<float>();
   options.firstRandomInfoSetKey =
@@ -81,10 +135,15 @@ int main(int argc, char* argv[]) {
   options.skipSingleInfoSetOpt = result["skip_single_infoset_opt"].as<bool>();
   options.skipSameDeltaPolicy = result["skip_same_delta_policy"].as<bool>();
   options.numSample = result["num_samples"].as<int>();
+  options.numSampleTotal = result["num_samples_total"].as<int>();
 
   int numIter = result["iter"].as<int>();
   int numIterCFR = result["iter_cfr"].as<int>();
   bool noCFRInit = result["no_cfr_init"].as<bool>();
+  bool useCFRPureInit = result["use_cfr_pure_init"].as<bool>();
+  bool printStrategyBeforeSearch =
+      result["print_strategy_before_search"].as<bool>();
+  bool dumpJson = result["dump_json"].as<bool>();
 
   simple::CommOptions gameOptions;
   gameOptions.numRound = result["num_round"].as<int>();
@@ -110,6 +169,9 @@ int main(int argc, char* argv[]) {
     game = std::make_unique<simple::SimpleBidding>(gameOptions);
   } else if (gameName == "2suitedbridge") {
     game = std::make_unique<simple::TwoSuitedBridge>(gameOptions);
+  } else if (gameName == "simplehanabi") {
+    simple::hanabi::Options hanabiOptions;
+    game = std::make_unique<simple::hanabi::SimpleHanabi>(hanabiOptions);
   } else {
     throw std::runtime_error(gameName + " is not implemented");
   }
@@ -131,25 +193,36 @@ int main(int argc, char* argv[]) {
   std::vector<float> vLoaded;
 
   if (!noCFRInit) {
-    tabular::cfr::CFRSolver cfrSolver(options.seed, options.verbose == tabular::VerboseLevel::VERBOSE);
-    std::cout << "Initialize CFR search tree and run it for " << numIterCFR << " iterations." << std::endl;
+    tabular::cfr::CFRSolver cfrSolver(
+        options.seed, options.verbose == tabular::VerboseLevel::VERBOSE);
+    std::cout << "Initialize CFR search tree" << std::endl;
     cfrSolver.init(*game);
+    std::cout << "Run CFR for " << numIterCFR << " iterations." << std::endl;
     v = cfrSolver.run(numIterCFR);
 
     std::cout << "Result after CFR " << numIterCFR
               << " iterations with seed: " << options.seed << std::endl;
     for (int i = 1; i < (int)v.size(); ++i) {
-      std::cout << "CFR Player " << i << " expected value: " << v[i] << std::endl;
+      std::cout << "CFR Player " << i << " expected value: " << v[i]
+                << std::endl;
     }
 
-    policies = cfrSolver.getInfos().getStrategies();
     // Also get the value after purification.
-    cfrSolver.getInfos().purifyStrategies();
+    if (useCFRPureInit) {
+      cfrSolver.getInfos().purifyStrategies();
+      policies = cfrSolver.getInfos().getStrategies();
+    } else {
+      policies = cfrSolver.getInfos().getStrategies();
+      cfrSolver.getInfos().purifyStrategies();
+    }
     vPure = cfrSolver.evaluate();
   }
 
   if (options.method == "cfr") {
-    std::cout << "CFR / CFR pure: " << v[1] << " " << vPure[1] << std::endl;
+    json j;
+    j["CFR"] = v[1];
+    j["CFRPure"] = vPure[1];
+    std::cout << "json_str: " << j.dump() << std::endl;
     return 0;
   }
 
@@ -168,6 +241,14 @@ int main(int argc, char* argv[]) {
     solver.loadPolicies(filename);
     solver.evaluate();
     vLoaded = solver.u();
+  } else if (result["load_pi_log"].count()) {
+    auto filename = result["load_pi_log"].as<std::string>();
+    std::cout << "Loading pi_log: " << filename << std::endl;
+    policies = tabular_utils::loadPolicy(*game, filename);
+    solver.manager().randomizePolicy();
+    solver.loadPolicies(policies);
+    solver.evaluate();
+    vLoaded = solver.u();
   } else {
     if (noCFRInit) {
       solver.manager().randomizePolicy();
@@ -176,17 +257,29 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  if (printStrategyBeforeSearch) {
+    solver.evaluate();
+    solver.manager().printStrategy();
+  }
+
   const int playerIdx = 1;
   auto sampler = tabular::search::InfoSetsSampler(solver.manager());
   auto searchResult = solver.runSearch(1, numIter, sampler);
 
-  if (!v.empty()) std::cout << "CFR: " << v[playerIdx] << " ";
-  if (!vPure.empty()) std::cout << "CFRPure: " << vPure[playerIdx] << " ";
-  if (!vLoaded.empty()) std::cout << "Loaded: " << vLoaded[playerIdx] << " ";
-  std::cout << "Search: " << searchResult.bestSoFar << " ";
-  std::cout << std::endl;
+  json j;
+  if (!v.empty()) j["CFR"] = v[playerIdx];
+  if (!vPure.empty()) j["CFRPure"] = vPure[playerIdx];
+  if (!vLoaded.empty()) j["Loaded"] = vLoaded[playerIdx];
+  j["Search"] = searchResult.bestSoFar;
+
+  std::cout << "json_str: " << j.dump() << std::endl;
 
   solver.manager().printStrategy();
+
+  if (dumpJson) {
+    std::cout << std::endl
+              << "json_str: " << solver.manager().strategyJson() << std::endl;
+  }
 
   /*
   std::cout << "Improving strategy with joint search: " << std::endl;

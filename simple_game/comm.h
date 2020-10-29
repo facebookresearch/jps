@@ -4,7 +4,6 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
 
 #pragma once
 
@@ -53,10 +52,10 @@ class Communicate : public rela::Env {
      return commOptions_.possibleCards;
    }
 
-   std::vector<int> legalActions() const override {
+   std::vector<rela::LegalAction> legalActions() const override {
      if (terminated()) return {};
-     if (playerIdx() == 1) return {0,1};
-     return rela::utils::getIncSeq(commOptions_.possibleCards);
+     if (playerIdx() == 1) return { {0, "0"}, {1, "1"} };
+     return rela::utils::intSeq2intStrSeq(rela::utils::getIncSeq(commOptions_.possibleCards));
    }
 
    std::unique_ptr<rela::Env> clone() const override {
@@ -92,6 +91,8 @@ class Communicate : public rela::Env {
        // featureSize (for player 1, see card (one hot) and history
        //            , for player 2, all entries in possibleCards are zero.
        commOptions_.possibleCards + commOptions_.numRound,
+       // max num of round (player 1: numRound, player 2: 1)
+       commOptions_.numRound + 1,
        // Nature max action, player 1 max action, player 2 max action.
        { n, 2, n }, 
        // Two player share the model.

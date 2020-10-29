@@ -4,10 +4,11 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
+
 #pragma once
 
 #include "comm_options.h"
+#include "common.h"
 #include "rela/env.h"
 #include "utils.h"
 #include <bitset>
@@ -15,6 +16,12 @@
 #include <sstream>
 
 namespace simple {
+  
+inline int log2int(int n, int k = 0) {
+  // Return floor(log2(n))
+  assert(n > 0);
+  return n <= 1 ? k : log2int(n >> 1, k + 1);
+}
 
 class SimpleBidding : public rela::Env {
  public:
@@ -65,13 +72,14 @@ class SimpleBidding : public rela::Env {
     return std::max(commOptions_.N * commOptions_.N, numBidding_);
   }
 
-  std::vector<int> legalActions() const override {
+  std::vector<rela::LegalAction> legalActions() const override {
     // Get legal actions for that particular state.
+    if (terminated()) return {};
+
     std::vector<int> legals;
-    if (terminated()) return legals;
     
     if (card1_ < 0) {
-      return rela::utils::getIncSeq(commOptions_.N * commOptions_.N); 
+      legals = rela::utils::getIncSeq(commOptions_.N * commOptions_.N);
     } else {
       if (publicActions_.size() == 0) {
         // Pass is not allowed.
@@ -84,7 +92,7 @@ class SimpleBidding : public rela::Env {
         std::iota(legals.begin() + 1, legals.end(), lastBid_ + 1);
       }
     }
-    return legals;
+    return rela::utils::intSeq2intStrSeq(legals);
   }
 
   std::unique_ptr<rela::Env> clone() const override {
@@ -157,6 +165,8 @@ class SimpleBidding : public rela::Env {
             //              plus numBidding_ * (numBidding_ + 1) for public
             //              bidding actions)
             2 * commOptions_.N + numBidding_ * (numBidding_ + 1),
+            // #Max number of round (#bidding)
+            numBidding_ + 1, 
             // Nature max action, player 1 max action, player 2 max action.
             {n, numBidding_, numBidding_},
             // Two player share the model.
@@ -246,6 +256,18 @@ class SimpleBidding : public rela::Env {
     if (playerIdx == 0)
       return {};
     return {3 - playerIdx};
+  }
+
+  std::string action2str(int action) const override { 
+    assert(card1_ >= 0 && card2_ >= 0);
+    assert(action >= 0 && action < numBidding_); 
+    if (action == kPass) return "P";
+    return std::to_string(1 << (action - 1));
+  }
+
+  int str2action(const std::string &s) const override { 
+    assert(card1_ >= 0 && card2_ >= 0);
+    return s == "P" ? kPass : log2int(std::stoi(s)) + 1; 
   }
 
  private:

@@ -4,7 +4,6 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
 
 #include "search.h"
 
@@ -12,7 +11,45 @@ namespace tabular {
 
 namespace search {
 
-std::string Result::info(const Manager &m) const {
+void _addInfoSetIfNonExists(InfoSets& infoSets, std::shared_ptr<InfoSet> next) {
+  // check if the information set has been added before.
+  for (const auto& info : infoSets) {
+    if (info->key() == next->key()) {
+      return;
+    }
+  }
+  infoSets.push_back(next);
+}
+
+void _addInfoSet(InfoSetsWithStats& infoSetsWithStats,
+                 std::shared_ptr<InfoSet> next) {
+  // check if the information set has been added before.
+  for (auto& infoStat : infoSetsWithStats) {
+    if (infoStat.info->key() == next->key()) {
+      infoStat.count++;
+      return;
+    }
+  }
+  infoSetsWithStats.emplace_back(next);
+}
+
+InfoSetsWithStats _getInfoSetsStats(const InfoSets& infoSets) {
+  InfoSetsWithStats res;
+  for (const auto& info : infoSets) {
+    res.emplace_back(info);
+  }
+  return res;
+}
+
+InfoSets _getInfoSets(const InfoSetsWithStats& infoSetsWithStats) {
+  InfoSets res;
+  for (const auto& kv : infoSetsWithStats) {
+    res.emplace_back(kv.info);
+  }
+  return res;
+}
+
+std::string Result::info(const Manager& m) const {
   std::stringstream ss;
   ss << std::setprecision(10) << value << ", seq: ";
   ss << prefix(m);
@@ -22,14 +59,15 @@ std::string Result::info(const Manager &m) const {
   return ss.str();
 }
 
-std::string Result::prefix(const Manager &m) const {
+std::string Result::prefix(const Manager& m) const {
   std::stringstream ss;
   for (int i = (int)actions.size() - 1; i >= 0; --i) {
-    const auto& infoSetKey = actions[i].first; 
+    const auto& infoSetKey = actions[i].first;
     const auto* infoSet = m.infoSet(infoSetKey);
     if (infoSet != nullptr) {
       const auto& legalActions = m[infoSetKey].legalActions();
-      ss << "(" << infoSetKey << ", " << legalActions[actions[i].second] << ") ";
+      ss << "(" << infoSetKey << ", " << legalActions[actions[i].second]
+         << ") ";
     } else {
       ss << "[" << infoSetKey << "] ";
     }
@@ -38,15 +76,15 @@ std::string Result::prefix(const Manager &m) const {
   return ss.str();
 }
 
-std::string ResultAgg::info(const Manager &m, bool sortByValue) const {
+std::string ResultAgg::info(const Manager& m, bool sortByValue) const {
   std::stringstream ss;
 
-  auto compByValue = [](const Result& r1, const Result& r2) { 
-    return r1.value > r2.value; 
+  auto compByValue = [](const Result& r1, const Result& r2) {
+    return r1.value > r2.value;
   };
 
-  auto compByPrefix = [&m](const Result& r1, const Result& r2) { 
-    return r1.prefix(m) < r2.prefix(m); 
+  auto compByPrefix = [&m](const Result& r1, const Result& r2) {
+    return r1.prefix(m) < r2.prefix(m);
   };
 
   std::vector<Result> results2;
@@ -65,12 +103,13 @@ std::string ResultAgg::info(const Manager &m, bool sortByValue) const {
   }
 
   if (!results2.empty() && sortByValue) {
-    ss << "Best over " << results2.size() << ": " << results2[0].info(m) << std::endl;
+    ss << "Best over " << results2.size() << ": " << results2[0].info(m)
+       << std::endl;
   }
   return ss.str();
 }
 
-const std::vector<int> &InfoSet::legalActions() const {
+const std::vector<rela::LegalAction>& InfoSet::legalActions() const {
   assert(!states_.empty());
   return states_[0]->legalActions();
 }
@@ -91,7 +130,10 @@ void InfoSet::update(const State& s) {
   totalReach_ += s.totalReach();
 }
 
-void State::buildTree(std::shared_ptr<State> own, Manager& manager, const rela::Env& g, bool keepEnvInState) {
+void State::buildTree(std::shared_ptr<State> own,
+                      Manager& manager,
+                      const rela::Env& g,
+                      bool keepEnvInState) {
   if (manager.getOptions().verbose == VERBOSE) {
     std::cout << "State: " << g.info() << std::endl;
   }
@@ -124,12 +166,12 @@ void State::buildTree(std::shared_ptr<State> own, Manager& manager, const rela::
   for (int i = 0; i < numAction; ++i) {
     std::unique_ptr<rela::Env> g_next = g.clone();
     assert(g_next != nullptr);
-    g_next->step(legalActions_[i]);
+    g_next->step(legalActions_[i].first);
 
     children_.emplace_back(
         std::make_shared<State>(depth_ + 1, g_next->completeCompactDesc()));
     children_[i]->buildTree(children_[i], manager, *g_next, keepEnvInState);
-    children_[i]->parent_ = own; 
+    children_[i]->parent_ = own;
     children_[i]->parentActionIdx_ = i;
     info_->addDownStream(i, children_[i]->info_);
   }
@@ -155,15 +197,16 @@ std::shared_ptr<InfoSet> Manager::getInfoSet(const rela::Env& g) {
   if (it != infoSet_.end())
     return it->second;
 
-  auto v = std::make_shared<InfoSet>(key, playerId, isChancePlayer, numAction, options_);
+  auto v = std::make_shared<InfoSet>(
+      key, playerId, isChancePlayer, numAction, options_);
   infoSet_[key] = v;
 
   if (numAction > 0) {
-    numActionableInfoSets_ ++;
+    numActionableInfoSets_++;
   }
   return v;
 }
 
-}
+}  // namespace search
 
 }  // namespace tabular

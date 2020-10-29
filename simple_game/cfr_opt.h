@@ -4,7 +4,7 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
@@ -41,6 +41,11 @@ class InfoSet {
     if (isChancePlayer_)
       return;
 
+    if (numAction_ == 0) {
+      // std::cout << "#actions = 0! infoSet = " << key_ << std::endl;
+      return;
+    }
+
     // compute argmax.
     float maxProb = -1.0f;
     int maxAction = 0;
@@ -51,7 +56,7 @@ class InfoSet {
       }
     }
 
-    assert(maxAction >= 0);
+    assert(maxAction >= 0 && maxAction < numAction_);
     std::fill(strategy_.begin(), strategy_.end(), 0.0f);
     strategy_[maxAction] = 1.0f;
   }
@@ -278,7 +283,7 @@ class Node {
       for (int i = 0; i < numAction; ++i) {
         std::unique_ptr<rela::Env> g_next = g.clone();
         assert(g_next != nullptr);
-        g_next->step(legalActions_[i]);
+        g_next->step(legalActions_[i].first);
         children_[i].buildTree(infos, *g_next);
       }
     }
@@ -347,7 +352,7 @@ class Node {
 
   private:
     std::shared_ptr<InfoSet> info_;
-    std::vector<int> legalActions_;
+    std::vector<rela::LegalAction> legalActions_;
     std::vector<Node> children_;
     std::vector<float> u_;
 

@@ -4,7 +4,7 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
+
 #pragma once
 
 #include <set>
@@ -48,6 +48,7 @@ class KuhnPoker : public rela::Env {
    rela::EnvSpec spec() const override { 
      return { 
        9,  // feature size
+       3,  // max number of rounds.
        { (int)kCardDeals.size(),  2, 2 },
        { rela::PlayerGroup::GRP_NATURE, rela::PlayerGroup::GRP_1, rela::PlayerGroup::GRP_2 } 
      };
@@ -80,9 +81,11 @@ class KuhnPoker : public rela::Env {
      return (int)std::max(kCardDeals.size(), kActionTypes.size());
    }
 
-   std::vector<int> legalActions() const override {
-     if (public_ == "s") return rela::utils::getIncSeq(kCardDeals.size());
-     return rela::utils::getIncSeq(kActionTypes.size());
+   std::vector<rela::LegalAction> legalActions() const override {
+     std::vector<int> actions;
+     if (public_ == "s") actions = rela::utils::getIncSeq(kCardDeals.size());
+     else actions = rela::utils::getIncSeq(kActionTypes.size());
+     return rela::utils::intSeq2intStrSeq(actions); 
    }
 
    /*

@@ -4,12 +4,11 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
 
 #pragma once
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
 namespace tabular {
 
@@ -30,6 +29,7 @@ struct Options {
 
   int maxDepth = 0;
   int numSample = 0;
+  int numSampleTotal = 0;
 
   bool gtCompute = false;
   bool gtOverride = false;
@@ -40,6 +40,6 @@ struct Options {
   bool skipSameDeltaPolicy = false;
 };
 
-using Policies = std::unordered_map<std::string, std::vector<float>>; 
+using Policies = std::unordered_map<std::string, std::vector<float>>;
 
 }  // namespace tabular
