@@ -1,19 +1,17 @@
 ## Overview
 
-Code for "Joint Policy Search for Collaborative Multi-agent Imperfect Information Games". Arxiv [link](https://arxiv.org/abs/2008.06495).
+Code for "Joint Policy Search for Collaborative Multi-agent Imperfect Information Games". Arxiv [link](https://arxiv.org/abs/2008.06495). The paper is published in NeurIPS 2020.
 
 The project aims to find better equilibrium in multi-agent collaborative games with imperfect information by improving the policies of multiple agents simultaneously. This helps escape local equilibrium where unlaterial improvement of one player's policy is not helpful. To achieve that, we developed a novel value decomposition technique that decomposes the expected value changes into information sets where the policy differs, and search over candidate information sets via depth-first search. Each update can be proven not to degrade the performance in the tabular cases.
 
-We open source the code to reproduce our results in simple games (see Def. 1-3 in the paper). The pre-trained Bridge model will be released later.
+We open source the code to reproduce our results in simple games (see Def. 1-3 in the paper). The dataset and pre-trained Bridge model will be released later.
 
 ```
-@misc{tian2020jps,
+@inproceedings{tian2020jps,
     title={Joint Policy Search for Multi-agent Collaboration with Imperfect Information},
     author={Yuandong Tian and Qucheng Gong and Tina Jiang},
-    year={2020},
-    eprint={2008.06495},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG}
+    booktitle={NeurIPS},
+    year={2020}
 }
 ```
 

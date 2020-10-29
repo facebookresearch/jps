@@ -4,7 +4,7 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
+
 #pragma once
 
 // #include "game_interface.h"
@@ -66,10 +66,16 @@ class Communicate2 : public rela::Env {
      return 4;
    }
 
-   std::vector<int> legalActions() const override {
+   std::vector<rela::LegalAction> legalActions() const override {
      if (terminated()) return {};
-     if (card1_ < 0 && card2_ < 0) return {0, 1, 2, 3};
-     return {0, 1, 2};
+     
+     std::vector<int> actions;
+     if (card1_ < 0 && card2_ < 0) {
+       actions = std::vector<int>{0, 1, 2, 3};
+     } else {
+       actions = std::vector<int>{0, 1, 2};
+     }
+     return rela::utils::intSeq2intStrSeq(actions);
    }
 
    int playerIdx() const override {
@@ -141,6 +147,8 @@ class Communicate2 : public rela::Env {
      return { 
        // featureSize: card1 with one-hot, card2 with one-hot, public_action
        4 + 3,
+       // max number of round
+       2,
        // Max number of actions for each player.
        { 4, 3, 3 }, 
        // Two players share the model.

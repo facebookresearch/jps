@@ -4,26 +4,28 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
 
 #pragma once
 
+#include "common.h"
+#include "rela/env.h"
+#include "utils.h"
+#include <algorithm>
 #include <cassert>
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <algorithm>
+#include <numeric>
 #include <random>
 #include <sstream>
+#include <stack>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <numeric>
-#include <chrono>
-#include <stack>
-#include "rela/env.h"
-#include "utils.h"
-#include "common.h"
+
+#include "nlohmann/json.hpp"
+using json = nlohmann::json;
 
 namespace tabular {
 
@@ -32,12 +34,28 @@ namespace search {
 class State;
 class InfoSet;
 
+struct InfoSetStats {
+  std::shared_ptr<InfoSet> info;
+  int count;
+
+  InfoSetStats(std::shared_ptr<InfoSet> info)
+      : info(info)
+      , count(1) {
+  }
+};
+
 using InfoSets = std::vector<std::shared_ptr<InfoSet>>;
+using InfoSetsWithStats = std::vector<InfoSetStats>;
 using States = std::vector<std::shared_ptr<State>>;
 
 inline bool _isDeltaStrategy(const std::vector<float>& strategy, int action) {
-  return std::abs(strategy[action] - 1.0f) < 1e-8; 
+  return std::abs(strategy[action] - 1.0f) < 1e-8;
 }
+
+void _addInfoSetIfNonExists(InfoSets& infoSets, std::shared_ptr<InfoSet> next);
+InfoSetsWithStats _getInfoSetsStats(const InfoSets&);
+InfoSets _getInfoSets(const InfoSetsWithStats&);
+void _addInfoSet(InfoSetsWithStats&, std::shared_ptr<InfoSet> next);
 
 class InfoSet {
  public:
@@ -58,23 +76,29 @@ class InfoSet {
     succs_.resize(numAction_);
 
     if (options_.verbose == VERBOSE) {
-      std::cout << "New InfoSet, key: " << key_ << ", num_action = " << numAction_ 
-                << ", player: " << player_ << std::endl;
+      std::cout << "New InfoSet, key: " << key_
+                << ", num_action = " << numAction_ << ", player: " << player_
+                << std::endl;
     }
   }
 
   void setDepth(int depth) {
-    // This implicitly assumes that depth is public information (since all actions are public).
+    // This implicitly assumes that depth is public information (since all
+    // actions are public).
     depth_ = depth;
   }
 
-  int depth() const { return depth_; }
+  int depth() const {
+    return depth_;
+  }
 
   void setPhi(int phi) {
     phi_ = phi;
   }
 
-  int phi() const { return phi_; }
+  int phi() const {
+    return phi_;
+  }
 
   void perturbChance(float sigma) {
     if (!isChance_)
@@ -113,7 +137,7 @@ class InfoSet {
     normalize(strategy_);
   }
 
-  const std::string &key() const {
+  const std::string& key() const {
     return key_;
   }
   const std::vector<float>& strategy() const {
@@ -128,7 +152,8 @@ class InfoSet {
   bool isChance() const {
     return isChance_;
   }
-  const std::vector<int> &legalActions() const;
+
+  const std::vector<rela::LegalAction>& legalActions() const;
 
   virtual std::string info() const {
     std::stringstream ss;
@@ -195,20 +220,9 @@ class InfoSet {
   void addDownStream(int action, std::shared_ptr<InfoSet> next) {
     auto& succ = succs_[action];
 
-    auto checkExist = [&](const InfoSets &infoSets) {
-      // check if the information set has been added before.
-      for (const auto& info : infoSets) {
-        if (info->key() == next->key()) {
-          return true;
-        }
-      }
-      return false;
-    }; 
-
-    if (!checkExist(succ)) succ.push_back(next);
-
+    _addInfoSetIfNonExists(succ, next);
     // For nature private action, we might get duplicate.
-    if (!checkExist(allSucc_)) allSucc_.push_back(next);
+    _addInfoSetIfNonExists(allSucc_, next);
   }
 
   void addState(std::shared_ptr<State> node) {
@@ -259,15 +273,17 @@ struct Result {
   }
 
   Result(const std::vector<Entry>& e, float v, std::string c = "")
-      : actions(e), value(v), comment(c) {
+      : actions(e)
+      , value(v)
+      , comment(c) {
   }
 
   Result(float v = 0.0f)
       : value(v) {
   }
 
-  std::string prefix(const Manager &) const;
-  std::string info(const Manager &m) const;
+  std::string prefix(const Manager&) const;
+  std::string info(const Manager& m) const;
 
   Result& attach(const Entry& prefix, float edge) {
     actions.push_back(prefix);
@@ -331,7 +347,7 @@ struct ResultAgg {
     return *this;
   }
 
-  std::string info(const Manager &, bool sortByValue = true) const;
+  std::string info(const Manager&, bool sortByValue = true) const;
 
   Result getBest() const {
     Result best(-std::numeric_limits<float>::max());
@@ -362,12 +378,13 @@ struct Analysis {
     int checkedReach = 0;
     int checkedFailedReach = 0;
 
-    std::cout << "Reachability discrepency: gt.size(): " << reach.results.size() 
+    std::cout << "Reachability discrepency: gt.size(): " << reach.results.size()
               << ", est.size(): " << reach1.results.size() << std::endl;
-    for (const auto &r : reach.results) {
+    for (const auto& r : reach.results) {
       auto it = reach1.results.find(r.first);
       if (it == reach1.results.end()) {
-        std::cout << "Error! " << r.first << " does not have a match.. " << std::endl;
+        std::cout << "Error! " << r.first << " does not have a match.. "
+                  << std::endl;
         continue;
       }
       assert(it != reach1.results.end());
@@ -376,13 +393,15 @@ struct Analysis {
       float est = it->second.value;
 
       if (std::abs(gt - est) >= 1e-4) {
-        std::cout << r.first << ", gt = " << gt << ", est = " << est << ", comment: " << it->second.comment;
-        std::cout << std::endl; 
-        checkedFailedReach ++;
+        std::cout << r.first << ", gt = " << gt << ", est = " << est
+                  << ", comment: " << it->second.comment;
+        std::cout << std::endl;
+        checkedFailedReach++;
       }
-      checkedReach ++;
+      checkedReach++;
     }
-    std::cout << "Reach check: err: " << checkedFailedReach << "/" << checkedReach << std::endl;
+    std::cout << "Reach check: err: " << checkedFailedReach << "/"
+              << checkedReach << std::endl;
   }
 };
 
@@ -392,18 +411,22 @@ class Manager;
 class State {
  public:
   State(int depth, const std::string& key)
-      : depth_(depth), key_(key) {
+      : depth_(depth)
+      , key_(key) {
   }
 
-  void buildTree(std::shared_ptr<State> own, Manager&, const rela::Env& g, bool keepEnvInState = false);
+  void buildTree(std::shared_ptr<State> own,
+                 Manager&,
+                 const rela::Env& g,
+                 bool keepEnvInState = false);
 
   void propagate(float reach) {
     // if (infos.getOptions().verbose) {
     // std::cout << "In State" << std::endl;
     // }
     if (hasAlterReach_) {
-      std::cout << "Error! alterReach should not be set. alterReach: " << alterReach_ 
-                << ", totalReach: " << totalReach_ << std::endl;
+      std::cout << "Error! alterReach should not be set. alterReach: "
+                << alterReach_ << ", totalReach: " << totalReach_ << std::endl;
     }
     assert(!hasAlterReach_);
 
@@ -434,7 +457,9 @@ class State {
     }
   }
 
-  bool sampleActive() const { return sampleActive_; }
+  bool sampleActive() const {
+    return sampleActive_;
+  }
 
   void setAlterReach(float alterReach) {
     hasAlterReach_ = true;
@@ -446,7 +471,9 @@ class State {
     alterReach_ = totalReach_;
   }
 
-  bool hasAlterReach() const { return hasAlterReach_; }
+  bool hasAlterReach() const {
+    return hasAlterReach_;
+  }
 
   std::string printTree(int indent) const {
     if (children_.empty())
@@ -495,7 +522,9 @@ class State {
   const State* parent() const {
     return parent_.get();
   }
-  int parentActionIdx() const { return parentActionIdx_; }
+  int parentActionIdx() const {
+    return parentActionIdx_;
+  }
 
   std::shared_ptr<State> childSharedPtr(int i) const {
     return children_[i];
@@ -513,7 +542,9 @@ class State {
   const rela::Env* env() const {
     return env_.get();
   }
-  const std::vector<int> &legalActions() const { return legalActions_; }
+  const std::vector<rela::LegalAction>& legalActions() const {
+    return legalActions_;
+  }
 
  private:
   const int depth_;
@@ -521,7 +552,7 @@ class State {
 
   // In some cases we might want to keep an Env for debugging purpose.
   std::unique_ptr<rela::Env> env_;
-  std::vector<int> legalActions_;
+  std::vector<rela::LegalAction> legalActions_;
 
   std::shared_ptr<InfoSet> info_;
   std::shared_ptr<State> parent_;
@@ -588,7 +619,9 @@ class Manager {
     root_ = root;
   }
 
-  const State &root() const { return *root_; }
+  const State& root() const {
+    return *root_;
+  }
 
   void addState(std::shared_ptr<State> s) {
     // Also save it to complete state table.
@@ -598,13 +631,14 @@ class Manager {
     while ((int)infoSetByDepth_.size() <= info->depth()) {
       infoSetByDepth_.emplace_back();
     }
-    infoSetByDepth_[info->depth()].push_back(info);
+    auto& infoSets = infoSetByDepth_[info->depth()];
+    _addInfoSet(infoSets, info);
   }
 
   void printInfoSetTree() const {
     for (const auto& kv : infoSet_) {
       const auto& infoSet = *kv.second;
-      std::cout << "InfoSetKey: " << kv.first 
+      std::cout << "InfoSetKey: " << kv.first
                 << ", #states: " << infoSet.states().size() << std::endl;
       assert(kv.first == infoSet.key());
 
@@ -613,7 +647,7 @@ class Manager {
         std::cout << s->key() << ", ";
       }
       std::cout << std::endl;
-       
+
       for (int a = 0; a < infoSet.numAction(); a++) {
         std::cout << "  a=" << a << ": ";
         for (const auto& n : infoSet.succ(a)) {
@@ -636,7 +670,7 @@ class Manager {
         const auto& legalActions = infoSet.legalActions();
         const auto& strategy = infoSet.strategy();
 
-        for (int i = 0; i < (int)legalActions.size(); ++i) { 
+        for (int i = 0; i < (int)legalActions.size(); ++i) {
           ss << "  " << legalActions[i] << ": " << strategy[i] << std::endl;
         }
       }
@@ -646,6 +680,37 @@ class Manager {
       std::cout << "Player " << kv.first << " strategy " << std::endl;
       std::cout << kv.second.str() << std::endl;
     }
+  }
+
+  std::string strategyJson() const {
+    json j = json::array();
+
+    for (const auto& kv : infoSet_) {
+      const auto& infoSet = *kv.second;
+      if (infoSet.numAction() == 0 || infoSet.totalReach() == 0)
+        continue;
+
+      const auto& strategy = infoSet.strategy();
+
+      json entry;
+      entry["player"] = infoSet.getPlayer();
+      entry["legal_actions"] = infoSet.legalActions();
+      entry["info_set"] = kv.first;
+      entry["strategy"] = strategy;
+      entry["reach"] = infoSet.totalReach();
+      int best_action =
+          std::max_element(strategy.begin(), strategy.end()) - strategy.begin();
+      entry["best_action"] = best_action;
+      entry["succ"] = json::array();
+
+      for (const auto& infoNext : infoSet.succ(best_action)) {
+        entry["succ"].push_back(infoNext->key());
+      }
+
+      j.push_back(entry);
+    }
+
+    return j.dump();
   }
 
   const Options& getOptions() const {
@@ -693,8 +758,8 @@ class Manager {
   int maxDepth() const {
     return infoSetByDepth_.size() - 1;
   }
-  
-  const InfoSets &getInfoSetsByDepth(int depth) const {
+
+  const InfoSetsWithStats& getInfoSetsByDepth(int depth) const {
     return infoSetByDepth_[depth];
   }
 
@@ -723,7 +788,7 @@ class Manager {
   std::unordered_map<std::string, std::shared_ptr<InfoSet>> infoSet_;
   std::unordered_map<std::string, std::shared_ptr<State>> states_;
   std::shared_ptr<State> root_;
-  std::vector<InfoSets> infoSetByDepth_;
+  std::vector<InfoSetsWithStats> infoSetByDepth_;
   const Options options_;
 
   int numActionableInfoSets_ = 0;
@@ -731,14 +796,14 @@ class Manager {
 
 inline InfoSets combineInfoSets(const InfoSets& set1, const InfoSets& set2) {
   InfoSets result = set1;
-  for (const auto &infoSet2 : set2) {
+  for (const auto& infoSet2 : set2) {
     bool hasOne = false;
-    for (const auto &infoSet1 : set1) {
+    for (const auto& infoSet1 : set1) {
       if (infoSet1->key() == infoSet2->key()) {
         hasOne = true;
         break;
       }
-    } 
+    }
     if (!hasOne) {
       result.push_back(infoSet2);
     }
@@ -748,22 +813,24 @@ inline InfoSets combineInfoSets(const InfoSets& set1, const InfoSets& set2) {
 
 class InfoSetsSampler {
  public:
-  InfoSetsSampler(Manager &manager)
-    : manager_(manager)
-    , rng_(manager.getOptions().seed) {
+  InfoSetsSampler(Manager& manager)
+      : manager_(manager)
+      , rng_(manager.getOptions().seed) {
   }
 
-  void setFixedInfoSets(InfoSets &&infoSets) {
+  void setFixedInfoSets(InfoSets&& infoSets) {
     fixedInfoSets_ = std::move(infoSets);
   }
 
   void reset() {
-    const auto &options = manager_.getOptions();
+    const auto& options = manager_.getOptions();
 
-    // Initialize sampledDepth. 
+    // Initialize sampledDepth.
     if (options.maxDepth > 0) {
-      // Random shuffle an order of [1, manager_.maxDepth() - options_.maxDepth].
-      sampledDepth_ = rela::utils::getIncSeq(manager_.maxDepth() - options.maxDepth, 1);
+      // Random shuffle an order of [1, manager_.maxDepth() -
+      // options_.maxDepth].
+      sampledDepth_ =
+          rela::utils::getIncSeq(manager_.maxDepth() - options.maxDepth, 1);
       std::shuffle(sampledDepth_.begin(), sampledDepth_.end(), rng_);
     }
 
@@ -771,54 +838,61 @@ class InfoSetsSampler {
   }
 
   InfoSets sample() {
-    const auto &options = manager_.getOptions();
+    const auto& options = manager_.getOptions();
+    auto infoSetsWithStats = getInfoSetsWithStats();
+    int totalNumState = 0;
+    for (int i = 0; i < (int)infoSetsWithStats.size(); ++i) {
+      const auto& states = infoSetsWithStats[i].info->states();
+      totalNumState += states.size();
+    }
+    auto samples = getSamples(infoSetsWithStats);
 
-    InfoSets infoSets;
-    if (!fixedInfoSets_.empty()) {
-      infoSets = fixedInfoSets_;
-    } else { 
-      // Which infoSets we want to use?
-      if (options.maxDepth == 0) {
-        infoSets = manager_.root().infoSet().allSucc();
-      } else {
-        if (sampledDepth_.empty()) return {};
-        int depth = sampledDepth_.back(); 
-        sampledDepth_.pop_back();
-        if (options.verbose != SILENT) {
-          std::cout << "sampled depth = " << depth
-            << ", maxDepth: " << manager_.maxDepth() 
-            << ", maxAllowedSearchDepth: " << options.maxDepth << std::endl; 
-        }
-        infoSets = manager_.getInfoSetsByDepth(depth);
+    clearSampledStates();
+    if (samples.empty())
+      return _getInfoSets(infoSetsWithStats);
+
+    struct _Data {
+      int cnt = 0;
+      int total;
+      std::shared_ptr<InfoSet> info;
+    };
+
+    std::unordered_map<std::string, _Data> counts;
+    for (const auto& p : samples) {
+      const auto& info = infoSetsWithStats[p.first].info;
+      auto& s = info->states()[p.second];
+      s->setSampleActive(true);
+
+      sampledRootStates_.push_back(s);
+
+      auto& c = counts[info->key()];
+      if (c.cnt == 0) {
+        c.total = info->states().size();
+        c.info = info;
+      }
+      c.cnt++;
+    }
+    if (options.verbose == NORMAL) {
+      std::cout << "Sampled: #infoSet: " << counts.size() << "/"
+                << infoSetsWithStats.size() << ", #states: " << samples.size()
+                << "/" << totalNumState << std::endl;
+    }
+    if (options.verbose == VERBOSE) {
+      for (const auto& kv : counts) {
+        std::cout << "Sample: infoSet[" << kv.first << "]: " << kv.second.cnt
+                  << "/" << kv.second.total << std::endl;
       }
     }
 
-    if (options.numSample > 0) {
-      clearSampledStates();
-
-      // sample a few states per infoset and run.
-      for (auto &info : infoSets) {
-        const auto& states = info->states();
-
-        auto seq = rela::utils::getIncSeq(states.size());
-        std::shuffle(seq.begin(), seq.end(), rng_);
-
-        for (int i = 0; i < std::min(options.numSample, (int)states.size()); ++i) {
-          auto &s = states[seq[i]];
-          s->setSampleActive(true);
-          sampledRootStates_.push_back(s);
-        }
-        if (options.verbose == VERBOSE) {
-          std::cout << "Sample: infoSet[" << info->key() << "]: " 
-                    << options.numSample << "/" << states.size() << std::endl;
-        }
-      }
+    InfoSets infoSets;
+    for (const auto& kv : counts) {
+      infoSets.push_back(kv.second.info);
     }
     return infoSets;
   }
 
  private:
-  Manager &manager_;
+  Manager& manager_;
   std::mt19937 rng_;
   std::vector<int> sampledDepth_;
   InfoSets fixedInfoSets_;
@@ -826,10 +900,90 @@ class InfoSetsSampler {
   States sampledRootStates_;
 
   void clearSampledStates() {
-    for (auto &s : sampledRootStates_) {
+    for (auto& s : sampledRootStates_) {
       s->setSampleActive(false);
     }
     sampledRootStates_.clear();
+  }
+
+  std::vector<std::pair<int, int>> getSamples(
+      const InfoSetsWithStats& infoSetsWithStats) {
+    if (infoSetsWithStats.empty())
+      return {};
+
+    const auto& options = manager_.getOptions();
+
+    if (options.numSample > 0) {
+      std::vector<std::pair<int, int>> samples;
+      // sample num_sample states per infoset and run.
+      std::vector<int> infoSetSel =
+          rela::utils::getIncSeq(infoSetsWithStats.size());
+      std::shuffle(infoSetSel.begin(), infoSetSel.end(), rng_);
+
+      for (int i = 0; i < (int)infoSetSel.size(); ++i) {
+        // for (int i = 0; i < std::min(4, (int)infoSetSel.size()); ++i) {
+        int infoIdx = infoSetSel[i];
+        const auto& states = infoSetsWithStats[infoIdx].info->states();
+        // int cnt = infoSetsWithStats[infoIdx].count;
+        int n = options.numSample;  //* cnt;
+        for (int j = 0; j < n; ++j) {
+          // Sample with replacement.
+          int idx = rng_() % states.size();
+          samples.emplace_back(infoIdx, idx);
+        }
+      }
+      return samples;
+    }
+
+    if (options.numSampleTotal > 0) {
+      std::vector<std::pair<int, int>> samples;
+      std::vector<int> probs;
+      for (int i = 0; i < (int)infoSetsWithStats.size(); ++i) {
+        const auto& info = infoSetsWithStats[i].info;
+        int cnt = infoSetsWithStats[i].count;
+        const auto& states = info->states();
+        for (int j = 0; j < (int)states.size(); ++j) {
+          samples.emplace_back(i, j);
+          probs.push_back(cnt);
+        }
+      }
+
+      std::discrete_distribution<int> dis(probs.begin(), probs.end());
+      std::vector<std::pair<int, int>> finalSamples(options.numSampleTotal);
+      for (int i = 0; i < options.numSampleTotal; ++i) {
+        int idx = dis(rng_);
+        assert(idx >= 0 && idx < (int)samples.size());
+        finalSamples[i] = samples[idx];
+      }
+      return finalSamples;
+    }
+
+    return {};
+  }
+
+  InfoSetsWithStats getInfoSetsWithStats() {
+    if (!fixedInfoSets_.empty()) {
+      return _getInfoSetsStats(fixedInfoSets_);
+    }
+
+    const auto& options = manager_.getOptions();
+
+    // Which infoSets we want to use?
+    if (options.maxDepth == 0) {
+      return _getInfoSetsStats(manager_.root().infoSet().allSucc());
+    } else {
+      if (sampledDepth_.empty())
+        return {};
+      int depth = sampledDepth_.back();
+      sampledDepth_.pop_back();
+      if (options.verbose != SILENT) {
+        std::cout << "sampled depth = " << depth
+                  << ", maxDepth: " << manager_.maxDepth()
+                  << ", maxAllowedSearchDepth: " << options.maxDepth
+                  << std::endl;
+      }
+      return manager_.getInfoSetsByDepth(depth);
+    }
   }
 };
 
@@ -865,12 +1019,13 @@ class Solver {
         std::cout << "Invalid infoSet: \"" << infoSet << "\"" << std::endl;
         continue;
       }
-      numLoadedInfoSets ++;
+      numLoadedInfoSets++;
       infoSet->setStrategy(kv.second);
     }
     if (numLoadedInfoSets < manager_.numActionableInfoSets()) {
-      std::cout << "Warning! #loaded policies [" << numLoadedInfoSets << "] < " 
-                << "#actionable policies " << manager_.numActionableInfoSets() << std::endl;
+      std::cout << "Warning! #loaded policies [" << numLoadedInfoSets << "] < "
+                << "#actionable policies " << manager_.numActionableInfoSets()
+                << std::endl;
     }
   }
 
@@ -901,7 +1056,9 @@ class Solver {
     }
   }
 
-  AlgResult runSearch(int playerIdx, int numIteration, InfoSetsSampler &sampler) {
+  AlgResult runSearch(int playerIdx,
+                      int numIteration,
+                      InfoSetsSampler& sampler) {
     assert(root_->infoSet().isChance());
     float lastBest = 0.0f;
 
@@ -926,13 +1083,15 @@ class Solver {
       const auto& u = root_->u();
 
       float baseScore = u[playerIdx];
-      if (!perturbed) result.bestSoFar = std::max(result.bestSoFar, baseScore);
+      if (!perturbed)
+        result.bestSoFar = std::max(result.bestSoFar, baseScore);
 
-      if (k > 0 && std::abs(baseScore - lastBest) >= 1e-6 && options_.numSample == 0 && 
+      if (k > 0 && std::abs(baseScore - lastBest) >= 1e-6 &&
+          options_.numSample == 0 && options_.numSampleTotal == 0 &&
           options_.perturbChance == 0 && options_.perturbPolicy == 0) {
         if (options_.verbose != SILENT) {
-          std::cout << "Potential err! lastBest [" << lastBest << "]" 
-            << " != baseScore [" << baseScore << "]" << std::endl;
+          std::cout << "Potential err! lastBest [" << lastBest << "]"
+                    << " != baseScore [" << baseScore << "]" << std::endl;
         }
       }
 
@@ -943,19 +1102,21 @@ class Solver {
         }
       }
 
-      if (options_.numSample > 0) {
+      if (options_.numSample > 0 || options_.numSampleTotal > 0) {
         if (std::abs(baseScore - lastBest) >= 1e-6) {
           // sampled based approach may estimate score wrong.
           lastBest = baseScore;
-        } 
+        }
         if (options_.verbose != SILENT) {
-          std::cout << "[" << k << "]: full eval score: " << baseScore << std::endl;
+          std::cout << "[" << k << "]: full eval score: " << baseScore
+                    << std::endl;
         }
       }
 
       // Which infoSets we want to use?
       InfoSets infoSets = sampler.sample();
-      if (infoSets.empty()) break;
+      if (infoSets.empty())
+        break;
 
       /*
       if (numSamples > 0) {
@@ -981,10 +1142,18 @@ class Solver {
       Analysis analysis;
       Stats stats;
       auto start = std::chrono::high_resolution_clock::now();
-      auto resultSampling = _search2({}, infoSets, playerIdx, options_.computeReach ? &analysis : nullptr, &stats);
+      auto resultSampling =
+          _search2({},
+                   infoSets,
+                   playerIdx,
+                   options_.computeReach ? &analysis : nullptr,
+                   &stats);
       resultSampling.addBias(baseScore);
       auto stop = std::chrono::high_resolution_clock::now();
-      float searchTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6; 
+      float searchTime =
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+              .count() /
+          1e6;
 
       if (options_.verbose == VERBOSE) {
         std::cout << "candidates from search: " << std::endl
@@ -1003,9 +1172,12 @@ class Solver {
       }
 
       if (options_.verbose != SILENT) {
-        std::cout << "[" << k << ":search]: time: " << searchTime << " on states: " << stats.time_states;
-        if (improved) std::cout << " result(*): "; 
-        else std::cout << " result: ";
+        std::cout << "[" << k << ":search]: time: " << searchTime
+                  << " on states: " << stats.time_states;
+        if (improved)
+          std::cout << " result(*): ";
+        else
+          std::cout << " result: ";
         std::cout << best.info(manager_) << std::endl;
       }
       lastBest = best.value;
@@ -1014,19 +1186,28 @@ class Solver {
         Analysis analysisGt;
 
         auto start = std::chrono::high_resolution_clock::now();
-        auto resultBruteForce = _bruteforceSearchJointInfoSet({}, infoSets, playerIdx, options_.computeReach ? &analysisGt : nullptr);
+        auto resultBruteForce = _bruteforceSearchJointInfoSet(
+            {},
+            infoSets,
+            playerIdx,
+            options_.computeReach ? &analysisGt : nullptr);
         auto stop = std::chrono::high_resolution_clock::now();
-        float bruteForceTime = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6;
+        float bruteForceTime =
+            std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+                .count() /
+            1e6;
 
         auto bestBruteForce = resultBruteForce.getBest();
 
         if (options_.verbose != SILENT) {
-          std::cout << "[" << k << ":brute ]: time: " << bruteForceTime << " result: " << bestBruteForce.info(manager_)
+          std::cout << "[" << k << ":brute ]: time: " << bruteForceTime
+                    << " result: " << bestBruteForce.info(manager_)
                     << std::endl;
 
           if (std::abs(bestBruteForce.value - best.value) >= 1e-4) {
-            std::cout << "Warning! search value [" << best.value 
-                      << "] != bruteForce value [" << bestBruteForce.value << "]" << std::endl;
+            std::cout << "Warning! search value [" << best.value
+                      << "] != bruteForce value [" << bestBruteForce.value
+                      << "]" << std::endl;
           }
 
           if (options_.verbose == VERBOSE) {
@@ -1044,7 +1225,7 @@ class Solver {
         }
 
         if (options_.verbose == VERBOSE) {
-          std::cout << "candidates from bruteForce: " << std::endl 
+          std::cout << "candidates from bruteForce: " << std::endl
                     << resultBruteForce.info(manager_) << std::endl;
         }
 
@@ -1054,7 +1235,9 @@ class Solver {
         }
       }
 
-      if (options_.numSample == 0 && options_.perturbChance == 0 && best.value == baseScore && options_.maxDepth == 0)
+      if (options_.numSample == 0 && options_.numSampleTotal == 0 &&
+          options_.perturbChance == 0 && best.value == baseScore &&
+          options_.maxDepth == 0)
         break;
 
       // Change the policy based on best policy.
@@ -1108,17 +1291,21 @@ class Solver {
   rela::EnvSpec spec_;
   int numPlayer_;
 
-  std::string printPrefix(const std::vector<Entry> &prefix) const {
+  std::string printPrefix(const std::vector<Entry>& prefix) const {
     std::stringstream ss;
     for (const auto& pre : prefix) {
-      const auto &infoSet = manager_[pre.first];
-      ss << "(" << pre.first << ", " << infoSet.legalActions()[pre.second] << ") "; 
+      const auto& infoSet = manager_[pre.first];
+      ss << "(" << pre.first << ", " << infoSet.legalActions()[pre.second]
+         << ") ";
     }
     return ss.str();
   }
 
-  ResultAgg _search2(const std::vector<Entry> &prefix, const InfoSets& infoSets, 
-      int playerIdx, Analysis *analysis, Stats *stats) const {
+  ResultAgg _search2(const std::vector<Entry>& prefix,
+                     const InfoSets& infoSets,
+                     int playerIdx,
+                     Analysis* analysis,
+                     Stats* stats) const {
     // From seed, iteratively add new infosets until we reach terminal.
     //
     // Preprocessing.
@@ -1132,11 +1319,13 @@ class Solver {
       // Note this is dependent on upstream policies so we have to compute it
       // here (otherwise we could precompute it)
       if (options_.verbose == VERBOSE) {
-        std::cout << "=== " << printPrefix(prefix) << ", " << info->key() << " === " << std::endl;
+        std::cout << "=== " << printPrefix(prefix) << ", " << info->key()
+                  << " === " << std::endl;
       }
 
       for (const auto& s : info->states()) {
-        if (options_.numSample > 0 && !s->sampleActive()) {
+        if ((options_.numSample > 0 || options_.numSampleTotal > 0) &&
+            !s->sampleActive()) {
           // std::cout << "Skipping sample..." << std::endl;
           continue;
         }
@@ -1144,26 +1333,28 @@ class Solver {
         float alterReach;
         std::string comment;
 
-        const State *ss = s.get();
-        const State *p;
+        const State* ss = s.get();
+        const State* p;
         float prob = 1.0f;
         int hop = 0;
         while (true) {
           p = ss->parent();
-          if (p == nullptr || p->infoSet().phi() >= 0) break;
+          if (p == nullptr || p->infoSet().phi() >= 0)
+            break;
           prob *= p->infoSet().strategy()[ss->parentActionIdx()];
           ss = p;
-          hop ++;
+          hop++;
         }
-        
+
         // Policy of active nodes is skipped since it is aways 1.
         if (p == nullptr) {
-            // s doesn't connect to any active infoSet so the reach of s doesn't change.
-            alterReach = s->totalReach();
-            comment = "traceBackOriginal";
+          // s doesn't connect to any active infoSet so the reach of s doesn't
+          // change.
+          alterReach = s->totalReach();
+          comment = "traceBackOriginal";
         } else {
           bool inActivePath = (p->infoSet().phi() == ss->parentActionIdx());
-          if (inActivePath) { 
+          if (inActivePath) {
             alterReach = p->alterReach() * prob;
           } else {
             alterReach = 0;
@@ -1188,7 +1379,8 @@ class Solver {
 
         if (options_.verbose == VERBOSE) {
           std::cout << "  " << s->key() << ", alterReach: " << alterReach
-                    << ", reach: " << s->totalReach() << ", u: " << s->u()[playerIdx];
+                    << ", reach: " << s->totalReach()
+                    << ", u: " << s->u()[playerIdx];
         }
       }
 
@@ -1200,16 +1392,21 @@ class Solver {
     }
 
     if (options_.verbose == VERBOSE) {
-      std::cout << "_search2() summary: " << printPrefix(prefix) << " #infoSets(): " << infoSets.size() << std::endl;
+      std::cout << "_search2() summary: " << printPrefix(prefix)
+                << " #infoSets(): " << infoSets.size() << std::endl;
       for (int k = 0; k < (int)infoSets.size(); ++k) {
         const auto& info = infoSets[k];
-        std::cout << "  " << info->key() << ", #state: " << info->states().size() << std::endl;
+        std::cout << "  " << info->key()
+                  << ", #state: " << info->states().size() << std::endl;
       }
     }
 
     if (stats != nullptr) {
       auto stop = std::chrono::high_resolution_clock::now();
-      stats->time_states += std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count() / 1e6; 
+      stats->time_states +=
+          std::chrono::duration_cast<std::chrono::microseconds>(stop - start)
+              .count() /
+          1e6;
     }
 
     ResultAgg result;
@@ -1221,7 +1418,8 @@ class Solver {
         for (int a = 0; a < info->numAction(); ++a) {
           auto currPrefix = std::make_pair(info->key(), a);
 
-          if (options_.skipSameDeltaPolicy && info->isDeltaStrategy(a)) continue;
+          if (options_.skipSameDeltaPolicy && info->isDeltaStrategy(a))
+            continue;
 
           if (options_.use2ndOrder) {
             for (int k2 = 0; k2 < k; ++k2) {
@@ -1230,7 +1428,8 @@ class Solver {
               for (int b = 0; b < info2->numAction(); ++b) {
                 auto currPrefix2 = std::make_pair(info2->key(), b);
 
-                if (options_.skipSameDeltaPolicy && info2->isDeltaStrategy(b)) continue;
+                if (options_.skipSameDeltaPolicy && info2->isDeltaStrategy(b))
+                  continue;
 
                 float edge = f[k2][b] + f[k][a];
 
@@ -1241,7 +1440,8 @@ class Solver {
                 info->setPhi(a);
                 info2->setPhi(b);
 
-                auto nextInfoSets = combineInfoSets(info->succ(a), info2->succ(b));
+                auto nextInfoSets =
+                    combineInfoSets(info->succ(a), info2->succ(b));
 
                 if (analysis != nullptr) {
                   auto prefix3 = prefix2;
@@ -1249,8 +1449,10 @@ class Solver {
                   analysis->terms.append(Result(prefix3, edge));
                 }
 
-                ResultAgg res = _search2(prefix2, nextInfoSets, playerIdx, analysis, stats);
-                result.append(res.attach(currPrefix, edge).attach(currPrefix2, 0));
+                ResultAgg res =
+                    _search2(prefix2, nextInfoSets, playerIdx, analysis, stats);
+                result.append(
+                    res.attach(currPrefix, edge).attach(currPrefix2, 0));
                 info->setPhi(-1);
                 info2->setPhi(-1);
               }
@@ -1267,11 +1469,12 @@ class Solver {
             if (analysis != nullptr) {
               auto prefix3 = prefix2;
               prefix3.push_back(std::make_pair("edge1", -1));
-              analysis->terms.append(Result(prefix3, edge)); 
+              analysis->terms.append(Result(prefix3, edge));
             }
 
             info->setPhi(a);
-            ResultAgg res = _search2(prefix2, info->succ(a), playerIdx, analysis, stats);
+            ResultAgg res =
+                _search2(prefix2, info->succ(a), playerIdx, analysis, stats);
             result.append(res.attach(currPrefix, edge));
             info->setPhi(-1);
           }
@@ -1290,8 +1493,10 @@ class Solver {
     return result;
   }
 
-  ResultAgg _search(const std::vector<Entry> &prefix, const InfoSets& infoSets, 
-      int playerIdx, Analysis *analysis) const {
+  ResultAgg _search(const std::vector<Entry>& prefix,
+                    const InfoSets& infoSets,
+                    int playerIdx,
+                    Analysis* analysis) const {
     // From seed, iteratively add new infosets until we reach terminal.
     //
     // Preprocessing.
@@ -1304,7 +1509,8 @@ class Solver {
       // Note this is dependent on upstream policies so we have to compute it
       // here (otherwise we could precompute it)
       if (options_.verbose == VERBOSE) {
-        std::cout << "=== " << printPrefix(prefix) << ", " << info->key() << " === " << std::endl;
+        std::cout << "=== " << printPrefix(prefix) << ", " << info->key()
+                  << " === " << std::endl;
       }
 
       for (const auto& s : info->states()) {
@@ -1313,26 +1519,28 @@ class Solver {
         float alterReach;
         std::string comment;
 
-        const State *ss = s.get();
-        const State *p;
+        const State* ss = s.get();
+        const State* p;
         float prob = 1.0f;
         int hop = 0;
         while (true) {
           p = ss->parent();
-          if (p == nullptr || p->infoSet().phi() >= 0) break;
+          if (p == nullptr || p->infoSet().phi() >= 0)
+            break;
           prob *= p->infoSet().strategy()[ss->parentActionIdx()];
           ss = p;
-          hop ++;
+          hop++;
         }
-        
+
         // Policy of active nodes is skipped since it is aways 1.
         if (p == nullptr) {
-            // s doesn't connect to any active infoSet so the reach of s doesn't change.
-            alterReach = s->totalReach();
-            comment = "traceBackOriginal";
+          // s doesn't connect to any active infoSet so the reach of s doesn't
+          // change.
+          alterReach = s->totalReach();
+          comment = "traceBackOriginal";
         } else {
           bool inActivePath = (p->infoSet().phi() == ss->parentActionIdx());
-          if (inActivePath) { 
+          if (inActivePath) {
             alterReach = p->alterReach() * prob;
           } else {
             alterReach = 0;
@@ -1340,17 +1548,18 @@ class Solver {
           float term = (alterReach - s->totalReach()) * s->u()[playerIdx];
           if (hop == 0 && inActivePath) {
             // Then s is an immediate descent of active infoSets
-            j1s[k] += term; 
+            j1s[k] += term;
           } else {
-            // Then s connect to some active infoSet so its reachability has changed. 
-            // Note that s has been accounted by one infoSet I' aside to the active infoSet, 
-            //      assuming v(s) won't change once it leaves I'. 
-            // Now s comes back and we want to make corrections. 
+            // Then s connect to some active infoSet so its reachability has
+            // changed. Note that s has been accounted by one infoSet I' aside
+            // to the active infoSet,
+            //      assuming v(s) won't change once it leaves I'.
+            // Now s comes back and we want to make corrections.
             j3s[k] += term;
           }
           comment = "traceBackHop-" + std::to_string(hop);
         }
-          
+
         s->setAlterReach(alterReach);
 
         if (analysis != nullptr) {
@@ -1361,8 +1570,9 @@ class Solver {
 
         if (options_.verbose == VERBOSE) {
           std::cout << "  " << s->key() << ", alterReach: " << alterReach
-                    << ", reach: " << s->totalReach() << ", u: " << s->u()[playerIdx] 
-                    << ", j1: " << j1s[k] << ", j3: " << j3s[k] << std::endl;
+                    << ", reach: " << s->totalReach()
+                    << ", u: " << s->u()[playerIdx] << ", j1: " << j1s[k]
+                    << ", j3: " << j3s[k] << std::endl;
         }
       }
 
@@ -1376,10 +1586,12 @@ class Solver {
     float sumJ1 = std::accumulate(j1s.begin(), j1s.end(), 0.0f);
 
     if (options_.verbose == VERBOSE) {
-      std::cout << "_search() summary: " << printPrefix(prefix) << " #infoSets(): " << infoSets.size() << std::endl;
+      std::cout << "_search() summary: " << printPrefix(prefix)
+                << " #infoSets(): " << infoSets.size() << std::endl;
       for (int k = 0; k < (int)infoSets.size(); ++k) {
         const auto& info = infoSets[k];
-        std::cout << "  " << info->key() << ", #state: " << info->states().size() << std::endl;
+        std::cout << "  " << info->key()
+                  << ", #state: " << info->states().size() << std::endl;
       }
     }
 
@@ -1392,7 +1604,8 @@ class Solver {
         for (int a = 0; a < info->numAction(); ++a) {
           auto currPrefix = std::make_pair(info->key(), a);
 
-          if (options_.skipSameDeltaPolicy && info->isDeltaStrategy(a)) continue;
+          if (options_.skipSameDeltaPolicy && info->isDeltaStrategy(a))
+            continue;
 
           if (options_.use2ndOrder) {
             for (int k2 = 0; k2 < k; ++k2) {
@@ -1401,9 +1614,11 @@ class Solver {
               for (int b = 0; b < info2->numAction(); ++b) {
                 auto currPrefix2 = std::make_pair(info2->key(), b);
 
-                if (options_.skipSameDeltaPolicy && info2->isDeltaStrategy(b)) continue;
+                if (options_.skipSameDeltaPolicy && info2->isDeltaStrategy(b))
+                  continue;
 
-                float edge = sumJ1 - j1s[k] - j3s[k] - j1s[k2] - j3s[k2] + info->residue(a) + info2->residue(b);
+                float edge = sumJ1 - j1s[k] - j3s[k] - j1s[k2] - j3s[k2] +
+                             info->residue(a) + info2->residue(b);
 
                 auto prefix2 = prefix;
                 prefix2.push_back(currPrefix);
@@ -1412,7 +1627,8 @@ class Solver {
                 info->setPhi(a);
                 info2->setPhi(b);
 
-                auto nextInfoSets = combineInfoSets(info->succ(a), info2->succ(b));
+                auto nextInfoSets =
+                    combineInfoSets(info->succ(a), info2->succ(b));
 
                 if (analysis != nullptr) {
                   auto prefix3 = prefix2;
@@ -1420,8 +1636,10 @@ class Solver {
                   analysis->terms.append(Result(prefix3, edge));
                 }
 
-                ResultAgg res = _search(prefix2, nextInfoSets, playerIdx, analysis);
-                result.append(res.attach(currPrefix, edge).attach(currPrefix2, 0));
+                ResultAgg res =
+                    _search(prefix2, nextInfoSets, playerIdx, analysis);
+                result.append(
+                    res.attach(currPrefix, edge).attach(currPrefix2, 0));
                 info->setPhi(-1);
                 info2->setPhi(-1);
               }
@@ -1438,11 +1656,12 @@ class Solver {
             if (analysis != nullptr) {
               auto prefix3 = prefix2;
               prefix3.push_back(std::make_pair("edge1", -1));
-              analysis->terms.append(Result(prefix3, edge)); 
+              analysis->terms.append(Result(prefix3, edge));
             }
 
             info->setPhi(a);
-            ResultAgg res = _search(prefix2, info->succ(a), playerIdx, analysis);
+            ResultAgg res =
+                _search(prefix2, info->succ(a), playerIdx, analysis);
             result.append(res.attach(currPrefix, edge));
             info->setPhi(-1);
           }
@@ -1467,7 +1686,9 @@ class Solver {
     return result;
   }
 
-  void dumpReachability(const std::vector<Entry>& prefix, const InfoSets& infoSets, Analysis *analysis) {
+  void dumpReachability(const std::vector<Entry>& prefix,
+                        const InfoSets& infoSets,
+                        Analysis* analysis) {
     evaluate();
     for (const auto& infoSet : infoSets) {
       // Dump all the reachability first.
@@ -1479,8 +1700,10 @@ class Solver {
     }
   }
 
-  ResultAgg _bruteforceSearchJointInfoSet(const std::vector<Entry>& prefix, const InfoSets& infoSets, int playerIdx, 
-      Analysis *analysis) {
+  ResultAgg _bruteforceSearchJointInfoSet(const std::vector<Entry>& prefix,
+                                          const InfoSets& infoSets,
+                                          int playerIdx,
+                                          Analysis* analysis) {
     // choose possible actions and set the policy accordingly
     if (analysis != nullptr) {
       dumpReachability(prefix, infoSets, analysis);
@@ -1497,20 +1720,24 @@ class Solver {
         for (int a = 0; a < infoSet->numAction(); ++a) {
           auto currAction = std::make_pair(infoSet->key(), a);
           // Set to delta strategy.
-          if (options_.skipSameDeltaPolicy && _isDeltaStrategy(strategy, a)) continue; 
+          if (options_.skipSameDeltaPolicy && _isDeltaStrategy(strategy, a))
+            continue;
 
           infoSet->setDeltaStrategy(a);
 
           if (options_.use2ndOrder) {
             for (const auto& infoSet2 : infoSets) {
-              if (infoSet2->key() == infoSet->key()) break;
+              if (infoSet2->key() == infoSet->key())
+                break;
 
               auto strategy2 = infoSet2->strategy();
 
               for (int b = 0; b < infoSet2->numAction(); ++b) {
                 auto currAction2 = std::make_pair(infoSet2->key(), b);
 
-                if (options_.skipSameDeltaPolicy && _isDeltaStrategy(strategy2, b)) continue;
+                if (options_.skipSameDeltaPolicy &&
+                    _isDeltaStrategy(strategy2, b))
+                  continue;
 
                 // Set to delta strategy.
                 infoSet2->setDeltaStrategy(b);
@@ -1519,12 +1746,16 @@ class Solver {
                 prefix2.push_back(currAction);
                 prefix2.push_back(currAction2);
 
-                auto nextInfoSets = combineInfoSets(infoSet->succ(a), infoSet2->succ(b));
+                auto nextInfoSets =
+                    combineInfoSets(infoSet->succ(a), infoSet2->succ(b));
 
                 // recurse its children.
-                auto thisRes = _bruteforceSearchJointInfoSet(prefix2, nextInfoSets, playerIdx, analysis);
-                // auto thisRes = _bruteforceSearch(prefix2, nextInfoSets, playerIdx, analysis);
-                res.append(thisRes.attach(currAction, 0).attach(currAction2, 0));
+                auto thisRes = _bruteforceSearchJointInfoSet(
+                    prefix2, nextInfoSets, playerIdx, analysis);
+                // auto thisRes = _bruteforceSearch(prefix2, nextInfoSets,
+                // playerIdx, analysis);
+                res.append(
+                    thisRes.attach(currAction, 0).attach(currAction2, 0));
               }
               infoSet2->setStrategy(strategy2);
             }
@@ -1535,13 +1766,15 @@ class Solver {
             prefix2.push_back(currAction);
 
             // recurse its children.
-            auto thisRes = _bruteforceSearchJointInfoSet(prefix2, infoSet->succ(a), playerIdx, analysis);
-            // auto thisRes = _bruteforceSearch(prefix2, nextInfoSets, playerIdx, analysis);
+            auto thisRes = _bruteforceSearchJointInfoSet(
+                prefix2, infoSet->succ(a), playerIdx, analysis);
+            // auto thisRes = _bruteforceSearch(prefix2, nextInfoSets,
+            // playerIdx, analysis);
             res.append(thisRes.attach(currAction, 0));
           }
         }
 
-        // Resume old strategy. 
+        // Resume old strategy.
         infoSet->setStrategy(strategy);
       }
     }
@@ -1552,8 +1785,10 @@ class Solver {
     return res;
   }
 
-  ResultAgg _bruteforceSearch(const std::vector<Entry>& prefix, const InfoSets& infoSets, int playerIdx, 
-      Analysis *analysis) {
+  ResultAgg _bruteforceSearch(const std::vector<Entry>& prefix,
+                              const InfoSets& infoSets,
+                              int playerIdx,
+                              Analysis* analysis) {
     // choose possible actions and set the policy accordingly
     if (analysis != nullptr) {
       dumpReachability(prefix, infoSets, analysis);
@@ -1573,10 +1808,11 @@ class Solver {
         prefix2.push_back(currAction);
 
         // recurse its children.
-        auto thisRes = _bruteforceSearch(prefix2, infoSet->succ(a), playerIdx, analysis);
+        auto thisRes =
+            _bruteforceSearch(prefix2, infoSet->succ(a), playerIdx, analysis);
         res.append(thisRes.attach(currAction, 0));
       }
-      // Resume old strategy. 
+      // Resume old strategy.
       infoSet->setStrategy(strategy);
     }
 
@@ -1587,6 +1823,6 @@ class Solver {
   }
 };
 
-}
+}  // namespace search
 
-}  //namespace tabular
+}  // namespace tabular

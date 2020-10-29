@@ -4,7 +4,7 @@
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
 // 
-// 
+
 #pragma once
 
 #include "comm_options.h"
@@ -63,20 +63,20 @@ class TwoSuitedBridge : public rela::Env {
     return std::max((commOptions_.N + 1) * (commOptions_.N + 1), numBidding_);
   }
 
-  std::vector<int> legalActions() const override {
+  std::vector<rela::LegalAction> legalActions() const override {
     // Get legal actions for that particular state.
+    if (terminated()) return {};
     std::vector<int> legals;
-    if (terminated()) return legals;
     
     if (card1_ < 0) {
-      return rela::utils::getIncSeq((commOptions_.N + 1) * (commOptions_.N + 1)); 
+      legals = rela::utils::getIncSeq((commOptions_.N + 1) * (commOptions_.N + 1)); 
     } else {
       legals.resize(numBidding_ - lastBid_);
       // Pass is always legal.
       legals[0] = kPass;
       std::iota(legals.begin() + 1, legals.end(), lastBid_ + 1);
     }
-    return legals;
+    return rela::utils::intSeq2intStrSeq(legals);
   }
 
   std::unique_ptr<rela::Env> clone() const override {
@@ -149,6 +149,8 @@ class TwoSuitedBridge : public rela::Env {
             //              plus numBidding_ * (numBidding_ + 1) for public
             //              bidding actions)
             2 * (commOptions_.N + 1) + numBidding_ * (numBidding_ + 1),
+            // Max number of round.
+            numBidding_ + 1,
             // Nature max action, player 1 max action, player 2 max action.
             {n, numBidding_, numBidding_},
             // Two player share the model.
@@ -238,6 +240,25 @@ class TwoSuitedBridge : public rela::Env {
     if (playerIdx == 0)
       return {};
     return {3 - playerIdx};
+  }
+
+  std::string action2str(int action) const override { 
+    assert(card1_ >= 0 && card2_ >= 0);
+    assert(action >= 0 && action < numBidding_); 
+    if (action == kPass) {
+      return publicActions_.empty() ? "0N" : "P";
+    }
+    return std::to_string((action - 1) / 2 + 1) + ((action - 1) % 2 == 0 ? "H" : "S");
+  }
+
+  int str2action(const std::string &s) const override { 
+    assert(card1_ >= 0 && card2_ >= 0);
+    if (s == "P" || s == "0N") {
+      return kPass;
+    } 
+    int rank = s[0] - '1';
+    int suit = (s[1] == 'H' ? 0 : 1);
+    return rank * 2 + suit + 1;
   }
 
  private:
