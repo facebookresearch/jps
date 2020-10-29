@@ -3,7 +3,7 @@
 // 
 // This source code is licensed under the license found in the
 // LICENSE file in the root directory of this source tree.
-// 
+// /
 
 #pragma once
 
@@ -23,11 +23,15 @@ enum PlayerGroup { GRP_NATURE = 0, GRP_1, GRP_2, GRP_3 };
 struct EnvSpec {
   // = 0 means that no feature is available.
   int featureSize;
+  // Max #round since start. -1 means not usable.
+  int maxActionRound;
   // Index by #players (e.g., for bridge the size of the two following vectors
   // would be 4)
   std::vector<int> maxNumActions;
   std::vector<PlayerGroup> players;
 };
+
+using LegalAction = std::pair<int, std::string>;
 
 class Env {
  public:
@@ -62,12 +66,12 @@ class Env {
   }
 
   virtual int maxNumAction() const = 0;
-  virtual std::vector<int> legalActions() const {
+  virtual std::vector<LegalAction> legalActions() const {
     // Get legal actions for that particular state.
     // Default behavior: everything is legal. The derived class can override
     // this.
     if (terminated()) return {};
-    return utils::getIncSeq(maxNumAction());
+    return rela::utils::intSeq2intStrSeq(rela::utils::getIncSeq(maxNumAction()));
   }
 
   // Return partners playerIndices.
@@ -80,6 +84,10 @@ class Env {
   // Get feature representation.
   virtual TensorDict feature() const {
     return {};
+  }
+
+  virtual int featureDim() const { 
+    return spec().featureSize;
   }
 
   // Game description for each agent. Each string corresponds to a unique
@@ -113,6 +121,10 @@ class Env {
   // This should be class method.
   virtual EnvSpec spec() const = 0;
 
+  // Some visualization code, can be overridden.
+  virtual std::string action2str(int action) const { return std::to_string(action); }
+  virtual int str2action(const std::string &s) const { return std::stoi(s); }
+
  protected:
   torch::Tensor legalActionMask() const { 
     torch::Tensor legalMove = torch::zeros({maxNumAction()});
@@ -120,7 +132,7 @@ class Env {
 
     auto f = legalMove.accessor<float, 1>();
     for (const auto & idx : legals) {
-      f[idx] = 1.0;
+      f[idx.first] = 1.0;
     }
     return legalMove;
   }
