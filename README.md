@@ -85,6 +85,7 @@ score: 2.1875
 2  20 (2)  20 (2)   20 (2)  230 (4)
 3  30 (0)  30 (4)   30 (4)   30 (4)
 ```
+Note that "120" means P1 first bids 1, P2 then bids 2 and P1 bids 0 (Pass). The final contract is 2^{2-1} = 2, if card1 + card2 >= 2, then both of the players get reward 2 (shown in the parentheses), otherwise 0.
 
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
