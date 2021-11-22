@@ -87,6 +87,27 @@ score: 2.1875
 ```
 Note that "120" means P1 first bids 1, P2 then bids 2 and P1 bids 0 (Pass). The final contract is 2^{2-1} = 2, if card1 + card2 >= 2, then both of the players get reward 2 (shown in the parentheses), otherwise 0.
 
+# Bridge Dataset
+Please download the dataset [here](https://www.dropbox.com/s/yno9jf06pdc6fsc/bridge_dataset.tar.gz?dl=0). The training set (dda.db) contains 2.5M situations, each with a pre-computed double dummy table. The database file can be opened by sqlite3.  
+```
+$ sqlite3
+SQLite version 3.31.1 2020-01-27 19:55:54
+Enter ".help" for usage hints.
+Connected to a transient in-memory database.
+Use ".open FILENAME" to reopen on a persistent database.
+sqlite> .open dda.db
+sqlite> select * from records limit 1;
+0|{"pbn": "[Deal \"N:KT9743.AQT43.J.7 J85.9.Q6.KQJ9532 Q2.KJ765.T98.T64 A6.82.AK75432.A8\"]", "ddt": [0, 12, 0, 12, 0, 12, 0, 12, 10, 3, 10, 3, 9, 4, 9, 4, 0, 8, 0, 8]}
+```
+
+DDS table is in the format of C (NESW), D (NESW), H (NESW), S (NESW), NT (NESW). For example, the 1D ddt table above means that
+|   | C  | D  | H  | S | NT |
+|---|----|----|----|---|----|
+| N | 0  | 0  | 10 | 9 | 0  |
+| E | 12 | 12 | 3  | 4 | 8  |
+| S | 0  | 0  | 10 | 9 | 0  |
+| W | 12 | 12 | 3  | 4 | 8  |
+
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
