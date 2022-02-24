@@ -88,7 +88,7 @@ score: 2.1875
 Note that "120" means P1 first bids 1, P2 then bids 2 and P1 bids 0 (Pass). The final contract is 2^{2-1} = 2, if card1 + card2 >= 2, then both of the players get reward 2 (shown in the parentheses), otherwise 0.
 
 # Bridge Dataset
-Please download the dataset [here](https://www.dropbox.com/s/yno9jf06pdc6fsc/bridge_dataset.tar.gz?dl=0). The training set (dda.db) contains 2.5M situations, each with a pre-computed double dummy table. The database file can be opened by sqlite3.  
+Please download the dataset [here](https://dl.fbaipublicfiles.com/bridge/bridge_dataset.tar.gz). The training set (dda.db) contains 2.5M situations, each with a pre-computed double dummy table. The database file can be opened by sqlite3.  
 ```
 $ sqlite3
 SQLite version 3.31.1 2020-01-27 19:55:54
