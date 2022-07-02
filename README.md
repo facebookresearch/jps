@@ -143,9 +143,9 @@ mean = 0.442, std = 0.1993448629244666
 mean = 0.628, std = 0.1944979317253668
 ```
 
-Note that the original log had one bug that miscalculated the declarer (the declarer should be the first player calling for the strain of the final contract, rather than the last player who finalizes it). This affects the `Final reward` entry so a simple `grep "Final reward" [log file]` didn't give you the right answer. Instead we provide you with `compute_score.py` to compute the final score correctly, with the help of DDS table of the 1k games stored in `./logs/against_WBridge5.raw`. 
+Note that the original log had one bug that miscalculated the declarer (the declarer should be the first player calling for the strain of the final contract, rather than the last player who finalizes it). This affects the `Final reward` entry so a simple `grep "Final reward" [log file]` didn't give you the right answer. Instead we provide you with [compute_score.py](./compute_score.py) to compute the final score correctly, with the help of DDS table of the 1k games stored [here](./logs/against_WBridge5.raw). 
 
-The pre-trained model, as well as the C++ code that runs it, will be released soon. 
+The pre-trained models, as well as the C++ code that runs it, will be released soon. 
 
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
