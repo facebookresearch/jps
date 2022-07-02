@@ -108,6 +108,45 @@ DDS table is in the format of C (NESW), D (NESW), H (NESW), S (NESW), NT (NESW).
 | S | 0  | 0  | 10 | 9 | 0  |
 | W | 12 | 12 | 3  | 4 | 8  |
 
+# Logs of our 14 days model
+Please check [here](./logs/jps_14days.log) for a complete log against WBridge5. Here is an explanation about the log entry:
+
+```
+dealer is 0 [Vulnerability None]                                                      # The dealer is 0, no Vulnerability
+[Deal "N:AK.J982.Q986.Q65 JT97.QT5.A5.AKJ7 Q82.AK743.32.T83 6543.6.KJT74.942"]        # All 4 hands
+parScore: -140
+
+Seat ♠   ♥   ♦   ♣   HCP   Actual Hand
+0    2   4   4   3   12   ♠AK ♥J982 ♦Q986 ♣Q65                                        
+1    4   3   2   4   15   ♠JT97 ♥QT5 ♦A5 ♣AKJ7                                        
+2    3   5   2   3   9    ♠Q82 ♥AK743 ♦32 ♣T83
+3    4   1   5   3   4    ♠6543 ♥6 ♦KJT74 ♣942
+
+# At table 0, JPS at Seat 0 and Seat 2 (two AI doesn't know each other's hands), and WBridge5 at Seat 1 and Seat 3
+# At table 1, JPS at Seat 1 and Seat 3, and WBridge5 at Seat 0 and Seat 2
+# Bids in parentheses are from WBridge5 (the opponent)
+
+Table 0, dealer: 0  1H (1N) P (P) P                                                   # Bidding. Seat 0 -> 1 -> 2 -> 3. JPS bids 1H, WBridge5 bids 1N (contract) 
+Table 1, dealer: 0  (1D) P (1H) P (2H) X (3H) P (P) P                                 # Bidding. WBridge5 bids 1D, JPS bids P, Wbridge5 bids 1H, then 2H, then 3H (contract)
+
+Table 0, Trick taken by declarer: 5, rawNSSeatScore: 100                              # Result After DDS. 1N down 2, declarer (Wbridge5) loses 100 points and JPS won 100 points.  
+Table 1, Trick taken by declarer: 8, rawNSSeatScore: -50                              # 3H down 1, declarer (WBridge5) loses 50 points and JPS won 50 points. 
+Final reward 0.166667                                                                 # Convert the two table scores into normalized IMPs (= IMP / 24) 
+```
+
+To compute the overall performance given these logs, please run the following script:
+```
+./jps$ python compute_score.py --log_file ./logs/jps_3days.log
+mean = 0.442, std = 0.1993448629244666
+
+./jps$ python compute_score.py --log_file ./logs/jps_14days.log
+mean = 0.628, std = 0.1944979317253668
+```
+
+Note that the original log had one bug that miscalculated the declarer (the declarer should be the first player calling for the strain of the final contract, rather than the last player who finalizes it). This affects the `Final reward` entry so a simple `grep "Final reward" [log file]` didn't give you the right answer. Instead we provide you with `compute_score.py` to compute the final score correctly, with the help of DDS table of the 1k games stored in `./logs/against_WBridge5.raw`. 
+
+The pre-trained model, as well as the C++ code that runs it, will be released soon. 
+
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
