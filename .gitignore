@@ -10,4 +10,5 @@ Makefile
 rela/CMakeCache.txt
 rela/CMakeFiles/
 rela/Makefile
-*/__pycache__/*
+__pycache__
+outputs
