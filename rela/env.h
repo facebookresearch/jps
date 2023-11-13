@@ -1,4 +1,9 @@
-// Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+// Copyright (c) Facebook, Inc. and its affiliates.
+// All rights reserved.
+// 
+// This source code is licensed under the license found in the
+// LICENSE file in the root directory of this source tree.
+// /
 
 #pragma once
 
@@ -66,12 +71,16 @@ class Env {
     // Default behavior: everything is legal. The derived class can override
     // this.
     if (terminated()) return {};
+<<<<<<< HEAD
     std::vector<LegalAction> actions(maxNumAction());
     for (int i = 0; i < (int)actions.size(); ++i) {
         actions[i].first = i;
         actions[i].second = "";
     }
     return actions;
+=======
+    return rela::utils::intSeq2intStrSeq(rela::utils::getIncSeq(maxNumAction()));
+>>>>>>> 88817263d5b52397eee6b36fbf79f7ccc6555e31
   }
 
   // Return partners playerIndices.

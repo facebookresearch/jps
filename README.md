@@ -108,7 +108,6 @@ DDS table is in the format of C (NESW), D (NESW), H (NESW), S (NESW), NT (NESW).
 | S | 0  | 0  | 10 | 9 | 0  |
 | W | 12 | 12 | 3  | 4 | 8  |
 
-
 # Logs of our pre-trained model
 Please check log of [3day model](./logs/jps_3days.log) and [14day model](./logs/jps_14days.log) competed against WBridge5. Here is an explanation of the log entry:
 
