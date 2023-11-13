@@ -26,6 +26,8 @@ struct EnvSpec {
   std::vector<PlayerGroup> players;
 };
 
+using LegalAction = std::pair<int, std::string>;
+
 class Env {
  public:
   Env() = default;
@@ -59,12 +61,17 @@ class Env {
   }
 
   virtual int maxNumAction() const = 0;
-  virtual std::vector<int> legalActions() const {
+  virtual std::vector<LegalAction> legalActions() const {
     // Get legal actions for that particular state.
     // Default behavior: everything is legal. The derived class can override
     // this.
     if (terminated()) return {};
-    return utils::getIncSeq(maxNumAction());
+    std::vector<LegalAction> actions(maxNumAction());
+    for (int i = 0; i < (int)actions.size(); ++i) {
+        actions[i].first = i;
+        actions[i].second = "";
+    }
+    return actions;
   }
 
   // Return partners playerIndices.
@@ -125,7 +132,7 @@ class Env {
 
     auto f = legalMove.accessor<float, 1>();
     for (const auto & idx : legals) {
-      f[idx] = 1.0;
+      f[idx.first] = 1.0;
     }
     return legalMove;
   }

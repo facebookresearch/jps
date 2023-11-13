@@ -302,6 +302,15 @@ inline std::vector<int> getIncSeq(int N, int start = 0) {
   return seq;
 }
 
+inline std::vector<std::pair<int, std::string>> intSeq2intStrSeq(const std::vector<int>& seq) {
+  std::vector<std::pair<int, std::string>> res(seq.size());
+  for (size_t i = 0; i < seq.size(); ++i) {
+    res[i].first = seq[i];
+    res[i].second = std::to_string(seq[i]);
+  }
+  return res;
+}
+
 std::pair<float, int> getMaxProb(const TensorDict& reply, const std::string& key);
 
 std::vector<std::pair<float, int>> getSortedProb(const TensorDict& reply,
@@ -309,7 +318,9 @@ std::vector<std::pair<float, int>> getSortedProb(const TensorDict& reply,
                                                  float threshold);
 
 std::vector<float> getVectorSel(const TensorDict& reply, const std::string& key, const std::vector<int> &sel);
+std::vector<float> getVectorSel(const TensorDict& reply, const std::string& key, const std::vector<std::pair<int, std::string>> &sel);
 std::vector<std::pair<float, int>> getVectorSelPair(const TensorDict& reply, const std::string& key, const std::vector<int>& sel);
+std::vector<std::pair<float, int>> getVectorSelPair(const TensorDict& reply, const std::string& key, const std::vector<std::pair<int, std::string>>& sel);
 
 }  // namespace utils
 }  // namespace rela

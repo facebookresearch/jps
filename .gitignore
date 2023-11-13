@@ -3,4 +3,10 @@
 */build
 build
 *.so
+CMakeCache.txt
+CMakeFiles/
+Makefile
+rela/CMakeCache.txt
+rela/CMakeFiles/
+rela/Makefile
 */__pycache__/*

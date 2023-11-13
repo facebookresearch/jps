@@ -154,6 +154,19 @@ std::vector<float> getVectorSel(const TensorDict& reply, const std::string& key,
   return result;
 }
 
+std::vector<float> getVectorSel(const TensorDict& reply, const std::string& key,
+                                const std::vector<std::pair<int, std::string>>& sel) {
+  const auto& prob = rela::utils::get(reply, key);
+  assert(prob.is_contiguous());
+  const float* prob_data = prob.data_ptr<float>();
+  std::vector<float> result;
+  result.reserve(sel.size());
+  for (const auto& idx : sel) {
+    result.emplace_back(prob_data[idx.first]);
+  }
+  return result;
+}
+
 std::vector<std::pair<float, int>> getVectorSelPair(
     const TensorDict& reply, const std::string& key,
     const std::vector<int>& sel) {
@@ -164,6 +177,20 @@ std::vector<std::pair<float, int>> getVectorSelPair(
   result.reserve(sel.size());
   for (const auto& idx : sel) {
     result.emplace_back(prob_data[idx], idx);
+  }
+  return result;
+}
+
+std::vector<std::pair<float, int>> getVectorSelPair(
+    const TensorDict& reply, const std::string& key,
+    const std::vector<std::pair<int, std::string>>& sel) {
+  const auto& prob = rela::utils::get(reply, key);
+  assert(prob.is_contiguous());
+  const float* prob_data = prob.data_ptr<float>();
+  std::vector<std::pair<float, int>> result;
+  result.reserve(sel.size());
+  for (const auto& idx : sel) {
+    result.emplace_back(prob_data[idx.first], idx.first);
   }
   return result;
 }
