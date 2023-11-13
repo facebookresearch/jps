@@ -1,9 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
-// All rights reserved.
-// 
-// This source code is licensed under the license found in the
-// LICENSE file in the root directory of this source tree.
-// /
+// Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 #pragma once
 
@@ -30,8 +25,6 @@ struct EnvSpec {
   std::vector<int> maxNumActions;
   std::vector<PlayerGroup> players;
 };
-
-using LegalAction = std::pair<int, std::string>;
 
 class Env {
  public:
@@ -66,12 +59,12 @@ class Env {
   }
 
   virtual int maxNumAction() const = 0;
-  virtual std::vector<LegalAction> legalActions() const {
+  virtual std::vector<int> legalActions() const {
     // Get legal actions for that particular state.
     // Default behavior: everything is legal. The derived class can override
     // this.
     if (terminated()) return {};
-    return rela::utils::intSeq2intStrSeq(rela::utils::getIncSeq(maxNumAction()));
+    return utils::getIncSeq(maxNumAction());
   }
 
   // Return partners playerIndices.
@@ -132,7 +125,7 @@ class Env {
 
     auto f = legalMove.accessor<float, 1>();
     for (const auto & idx : legals) {
-      f[idx.first] = 1.0;
+      f[idx] = 1.0;
     }
     return legalMove;
   }

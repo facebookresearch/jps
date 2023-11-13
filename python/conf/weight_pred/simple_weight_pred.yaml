@@ -1,0 +1,15 @@
+weight_model:
+  class: belief.SimpleWeightPredModel
+  params:
+    load_model:
+    input_dim:
+    hid_dim: 256
+    use_pos_neg_loss: false
+    use_partition_loss: true
+    use_global_v_loss: true
+    use_prob_loss: false
+    embed_dim: 32
+    num_blocks: 4
+    use_prior: true
+    weight_normalized: true
+

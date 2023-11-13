@@ -1,0 +1,9 @@
+belief_model:
+  class: belief.BaselineModel 
+  params:
+    load_model:
+    num_action:
+    input_dim:
+    hid_dim: 500
+    num_blocks: 4
+    cards_sel: null

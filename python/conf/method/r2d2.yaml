@@ -1,0 +1,23 @@
+actor_gen:
+  class: r2d2.R2D2ActorGen 
+  params:
+    batchsize: 128
+    multi_step: 4
+    gamma: 0.99
+    seq_len: 80
+    burnin: 0 
+    max_eps : 0.4
+    base_eps : 0.4
+    eps_alpha : 7
+    num_thread: ${num_thread}
+
+agent:
+  class: r2d2.R2D2Agent
+  params:
+    multi_step: 4
+    gamma: 0.99
+    eta: 0.9
+    device: cuda:0
+    input_dim:
+    hid_dim: 512
+    num_action: 

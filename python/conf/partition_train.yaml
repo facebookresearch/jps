@@ -1,0 +1,30 @@
+seed: 13
+grad_clip: 5
+
+num_thread: 1
+num_game_per_thread: 1
+
+train_device: "cuda:0"
+
+batchsize: 256
+
+optim: "adam"
+
+lr : 1.0e-3
+dataset_root: /private/home/yuandong/bridge/python/outputs/2020-07-31/15-45-41 
+
+first_k_data: null
+
+num_epoch: 100
+
+# SGD momentum
+momentum : 0.9
+
+# Adam epsilon
+eps : 1.0e-5
+
+githash:
+sweep_filename:
+
+defaults:
+    - weight_pred: simple_weight_pred

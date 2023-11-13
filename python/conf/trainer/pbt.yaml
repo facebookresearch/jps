@@ -1,0 +1,10 @@
+trainer:
+  class: trainer.PBTTrainer
+  params: 
+    # multi_step: 4
+    # gamma: 0.99
+    model_pool_size : 50
+    # actor_sync should be faster than actor_opponent_sync. This means that 
+    # given one actor, its opponent can change frequently. 
+    actor_sync_freq: 100
+    actor_opponent_sync_freq : 100

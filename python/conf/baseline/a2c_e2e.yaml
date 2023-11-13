@@ -1,0 +1,30 @@
+baseline:
+    actor_gen:
+      class: a2c.A2CActorGen 
+      params:
+        batchsize: 128
+        device: ${act_device}
+        use_sampling_in_eval: false
+
+    agent:
+      class: a2c.A2CAgent
+      params:
+        model_type: "e2e"
+        embed_dim: 32
+        hid_dim: 128
+        num_blocks: 2
+        num_rnn_layers: 2
+        device: "cuda:1"
+        entropy_ratio: 0.01
+        p_hand_loss_ratio: 0
+        p_hand_loss_only_on_terminal: false
+        max_importance_ratio: 2.0
+        opp_hand_ratio : 0.0
+        use_goal: False
+        explore_ratio : 0.0
+        num_action: 91
+        input_dim:
+        use_old_feature: false
+        use_behavior_clone: false
+        use_value_based: false
+        load_model:

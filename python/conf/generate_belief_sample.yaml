@@ -1,0 +1,6 @@
+belief_model_type: lstm
+belief_model_name: 
+db_filename:
+idx: 23
+num_sample: 30
+num_repeat: 5

@@ -1,0 +1,6 @@
+game:
+  class: pygames.Factory
+  params: 
+    game_type: comm
+    step: 4
+    N: 3

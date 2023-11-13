@@ -1,0 +1,17 @@
+game:
+  class: pybridge.Factory
+  params: 
+    num_thread: ${num_thread}
+    num_game_per_thread: ${num_game_per_thread}
+    train_dataset: /checkpoint/yuandong/bridge/original/dda.db
+    test_dataset: /checkpoint/yuandong/bridge/original/test.db
+    train_save_db: ""
+    test_save_db: ""
+    feature_version: single
+    save_feature_history: false
+    fixed_vul: -1
+    fixed_dealer: -1
+    sampler: "uniform"
+    train_bidding: false
+    train_playing: false
+    verbose: 0

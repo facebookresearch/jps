@@ -1,0 +1,3 @@
+baseline:
+    actor_gen:
+        class: pybridge.factory.RandomActorGen

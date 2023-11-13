@@ -1,0 +1,6 @@
+baseline:
+    actor_gen:
+        class: pybridge.factory.BaselineActorGen
+        params:
+            batchsize: 128
+            device: ${act_device}

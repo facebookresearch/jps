@@ -1,0 +1,22 @@
+# gen_type can be one of the following:
+#    basic:            Default value for a2c training.
+#    search:           This is deprecated search (the original one with ICML submission)
+#    search_new:       New search (NeurIPS version, still some issues and will be fixed next)
+#    belief:           Baseline belief modeling
+#    cross_bidding:    For cross_bidding
+
+env_actor_gen:
+  class: env_actor_gen.EnvActorGen
+  params: 
+    gen_type: "basic"
+    search_ratio : 0.5
+    update_count: 50000
+    search_verbose_freq: 500000
+    search_use_hacky: false
+    search_baseline_ratio: 0.1
+    search_use_tabular_ref: false
+    search_use_grad_update: true
+
+    # Deprecated, only used when gen_type = "search"
+    search_best_on_best: false
+    use_sad: false

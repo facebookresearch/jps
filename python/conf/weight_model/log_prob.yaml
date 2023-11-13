@@ -1,0 +1,8 @@
+weight_model:
+  class: belief.LogProbModel
+  params:
+    load_model:
+    input_dim:
+    hid_dim: 256
+    embed_dim: 32
+    num_blocks: 8

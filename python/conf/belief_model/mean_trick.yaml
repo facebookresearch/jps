@@ -1,0 +1,8 @@
+belief_model:
+  class: belief.MeanTrickModel
+  params:
+    load_model:
+    num_action:
+    input_dim:
+    hid_dim: 512
+    num_blocks: 8

@@ -1,0 +1,25 @@
+baseline:
+    actor_gen:
+      class: pybridge.factory.GreedyPlayActorGen
+      params:
+        device: ${act_device}
+
+    agent:
+      class: a2c.A2CAgent
+      params:
+        model_type: "resnet"
+        hid_dim: 200
+        num_blocks: 2
+        entropy_ratio: 0.01
+        p_hand_loss_ratio: 0
+        p_hand_loss_only_on_terminal: false
+        max_importance_ratio: 2.0
+        opp_hand_ratio : 0.0
+        use_goal: False
+        explore_ratio : 0.0
+        num_action:
+        input_dim:
+        use_old_feature: true
+        use_behavior_clone: false
+        use_value_based: false
+        load_model:

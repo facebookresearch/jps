@@ -1,0 +1,10 @@
+belief_model:
+  class: belief.VAEModel 
+  params:
+    load_model:
+    num_action:
+    input_dim:
+    hid_dim: 200
+    latent_dim: 100
+    num_blocks: 2
+    cards_sel: null

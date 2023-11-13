@@ -1,0 +1,10 @@
+belief_model:
+  class: belief.DynamicalOrderModel
+  params:
+    load_model:
+    num_action:
+    input_dim:
+    hid_dim: 200
+    num_blocks1: 4
+    num_blocks2: 1
+    pred_len: null

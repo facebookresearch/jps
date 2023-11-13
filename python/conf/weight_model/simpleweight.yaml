@@ -1,0 +1,12 @@
+weight_model:
+  class: belief.SimpleWeightModel
+  params:
+    load_model:
+    input_dim:
+    hid_dim: 256
+    embed_dim: 32
+    num_blocks: 4
+    use_prior: true
+    weight_normalized: true
+    self_att: true
+

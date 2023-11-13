@@ -1,0 +1,4 @@
+trainer:
+  class: trainer.Trainer
+  params: 
+    actor_sync_freq: 100

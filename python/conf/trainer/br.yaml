@@ -1,0 +1,7 @@
+trainer:
+  class: trainer.BRTrainer
+  params: 
+    multi_step: 4
+    gamma: 0.99
+    baseline_model_name: ""
+    actor_sync_freq: 100

@@ -1,0 +1,76 @@
+method : "iql"
+
+# game settings
+seed : 10001
+# discount factor
+greedy_extra : 0
+
+# optimization/training settings
+# optimizer
+belief_optim : "adam"
+# belief_optim : "sgd"
+weight_optim : "adam"
+# weight_optim : "sgd"
+
+# Learning rate
+belief_lr : 1.0e-3
+weight_lr : 1.0e-4
+
+min_lr : 1.0e-5
+
+# SGD momentum
+momentum : 0.9
+
+# Adam epsilon
+eps : 1.0e-5
+
+# max grad norm
+grad_clip : 50
+
+train_device : "cuda:0"
+batchsize : 1024
+num_epoch : 5000
+epoch_len : 10000
+num_update_between_sync : 2500
+
+# replay buffer settings
+burn_in_frames : 80000
+# [NOTE] Replay size should be relatively small, otherwise it has a lot old pairs played by old models. 
+replay_buffer_size : 800000
+
+# prioritized replay alpha
+priority_exponent : 0.6
+# prioritized replay beta
+priority_weight : 0.4
+
+# prefetch batch
+prefetch : 3
+
+# thread setting
+## #thread_loop
+num_thread : 40
+num_game_per_thread : 1
+
+# actor setting
+act_device : "cuda:1"
+
+# others
+record_time : 0
+eval_only : false
+
+save_prefix: ""
+display_freq: 20000
+
+githash: ""
+sweep_filename: ""
+
+train_opening_lead: false
+debug: false
+
+negative_momentum:
+
+defaults:
+    - method: a2c
+    - env_actor_gen: env_actor_gen
+    - belief_model: baseline
+    - weight_model: log_prob

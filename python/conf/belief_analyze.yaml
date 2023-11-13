@@ -1,0 +1,21 @@
+seed: 1
+db_filename: "/checkpoint/yuandong/bridge/after_bidding/test_bidding_sampled.db"
+n: 1024
+num_process: 32
+display_freq: 100
+model0: null
+model1: null
+belief_model_name: null
+belief_model_type: lstm
+direct_model_name: null
+weight_model_name: null
+
+weight_heuristics: null 
+
+num_sample: 100
+
+additional_info_file: null
+indices: null
+
+githash: ""
+sweep_filename: ""

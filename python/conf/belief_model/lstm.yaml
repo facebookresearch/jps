@@ -1,0 +1,12 @@
+belief_model:
+  class: belief.LSTMModel 
+  params:
+    load_model:
+    num_action:
+    input_dim:
+    hid_dim: 320
+    embed_dim: 32
+    num_blocks: 4
+    num_layers: 1
+    cards_seq: all
+    # SA-HA-DA-CA-SK-HK-DK-CK-SQ-HQ-DQ-CQ-SJ-HJ-DJ-CJ

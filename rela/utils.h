@@ -1,9 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
-// All rights reserved.
-// 
-// This source code is licensed under the license found in the
-// LICENSE file in the root directory of this source tree.
-// 
+// Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 #pragma once
 
@@ -302,35 +297,9 @@ inline TensorDict setTensorDictScalar(const std::string& key, T val) {
 
 inline std::vector<int> getIncSeq(int N, int start = 0) {
   std::vector<int> seq(N);
+  // Everything is legal.
   std::iota(seq.begin(), seq.end(), start);
   return seq;
-}
-
-inline std::vector<std::pair<int, std::string>> intSeq2intStrSeq(const std::vector<int>& seq) {
-  std::vector<std::pair<int, std::string>> res(seq.size());
-  for (size_t i = 0; i < seq.size(); ++i) {
-    res[i].first = seq[i];
-    res[i].second = std::to_string(seq[i]);
-  }
-  return res;
-}
-
-template <typename T, typename S>
-inline std::vector<T> pickFirst(const std::vector<std::pair<T, S>>& seq) {
-  std::vector<T> res(seq.size());
-  for (size_t i = 0; i < seq.size(); ++i) {
-    res[i] = seq[i].first;
-  }
-  return res;
-}
-
-template <typename T, typename S>
-inline std::vector<S> pickSecond(const std::vector<std::pair<T, S>>& seq) {
-  std::vector<S> res(seq.size());
-  for (size_t i = 0; i < seq.size(); ++i) {
-    res[i] = seq[i].second;
-  }
-  return res;
 }
 
 std::pair<float, int> getMaxProb(const TensorDict& reply, const std::string& key);

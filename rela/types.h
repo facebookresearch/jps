@@ -1,9 +1,4 @@
-// Copyright (c) Facebook, Inc. and its affiliates.
-// All rights reserved.
-// 
-// This source code is licensed under the license found in the
-// LICENSE file in the root directory of this source tree.
-// 
+// Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 #pragma once
 
@@ -41,8 +36,9 @@ class Transition {
   bool empty() const {
     bool anyEmpty = false;
     for (const auto& kv : d) {
-      if (kv.second.dim() == 0)
+      if (kv.second.dim() == 0) {
         anyEmpty = true;
+      }
     }
     return anyEmpty;
   }
