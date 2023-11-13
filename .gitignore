@@ -1,4 +1,5 @@
 *.swo
+*.cmake
 *.a
 *.swp
 */build
