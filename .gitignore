@@ -1,4 +1,5 @@
 *.swo
+*.a
 *.swp
 */build
 build
