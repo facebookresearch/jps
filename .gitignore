@@ -13,3 +13,5 @@ rela/CMakeFiles/
 rela/Makefile
 __pycache__
 outputs
+score_utils
+*.tcl
