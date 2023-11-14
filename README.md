@@ -244,9 +244,6 @@ score: 2.1875
 ```
 Note that "120" means P1 first bids 1, P2 then bids 2 and P1 bids 0 (Pass). The final contract is 2^{2-1} = 2, if card1 + card2 >= 2, then both of the players get reward 2 (shown in the parentheses), otherwise 0.
 
-
-The pre-trained models, as well as the C++ code that runs it, will be released soon. 
-
 ## Contribution
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
