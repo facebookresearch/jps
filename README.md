@@ -15,6 +15,8 @@ We open source the code to reproduce our results in simple games (see Def. 1-3 i
 }
 ```
 
+Thanks Xiaomeng Yang (@xiaomengy) for substantial code refactor after the paper acceptance. 
+
 # Bridge
 
 ## Requirements
