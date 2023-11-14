@@ -14,4 +14,5 @@ rela/Makefile
 __pycache__
 outputs
 score_utils
+bridge_data
 *.tcl

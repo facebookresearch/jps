@@ -3,8 +3,8 @@ game:
   params: 
     num_thread: ${num_thread}
     num_game_per_thread: ${num_game_per_thread}
-    train_dataset: /checkpoint/yuandong/bridge/original/dda.db
-    test_dataset: /checkpoint/yuandong/bridge/original/test.db
+    train_dataset: ""
+    test_dataset: ""
     train_save_db: ""
     test_save_db: ""
     feature_version: single
