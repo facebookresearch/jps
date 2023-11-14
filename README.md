@@ -106,7 +106,7 @@ Here is the example output:
 -1:eval_score_p3 [50000]: avg:  -0.0318 (±   0.0012), min:  -0.9167[14711], max:   0.8750[25576]
 ```
 
-Here `0.0318` means that the JPS model `agent-1610-0.63.pth` is 0.0318 * 24 = 0.7632 IMPs/b better than the baseline `agent-baseline-15-189.pth`, since the reward score is normalzed to [-1,1] from [-24,24] in IMPs/b scale. Note that the bridge game has 4 players and the evaluation dumps the scores for each player over 50000 games of the evaluation set. 
+Here `0.0318` means that the JPS model `agent-1610-0.63.pth` is 0.0318 * 24 = 0.7632 IMPs/b better than the baseline `agent-baseline-15-189.pth`, since the reward score is normalzed to [-1,1] from [-24,24] in IMPs/b scale. Note that the bridge game has 4 players and the evaluation dumps the scores for each player over 50000 games of the evaluation set (`test.db`) 
 
 For the three JPS models, we use the `old` feature while for baselines we use the `single` feature (which is a newer type of feature). Use `game.params.feature_version=old/single` to specify the features used for each model. 
 
@@ -135,6 +135,17 @@ To train the model, run the following:
 ```
 python main2.py num_thread=200 game=bridge env_actor_gen.params.gen_type=basic seed=1 \
     trainer=selfplay actor_gen.params.batchsize=1024 method=a2c \
+    game.params.train_dataset=`pwd`/../bridge_data/dda.db \
+    game.params.test_dataset=`pwd`/../bridge_data/test.db
+```
+If not specified, the default baseline is `baseline16`.
+
+## Console play with pre-trained models
+```
+python main2.py num_thread=1 game=bridge env_actor_gen.params.gen_type=basic seed=1 \
+    trainer=selfplay actor_gen.params.batchsize=1 eval_only=true \
+    method=a2c agent.params.load_model=`pwd`/../bridge_models/agent-1610-0.63.pth \
+    baseline=console_eval   game.params.feature_version=old \
     game.params.train_dataset=`pwd`/../bridge_data/dda.db \
     game.params.test_dataset=`pwd`/../bridge_data/test.db
 ```
