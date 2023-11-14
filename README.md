@@ -135,13 +135,29 @@ Here is the example output:
 ## Train model with self-play
 To train the model, run the following:
 ```
-python main2.py num_thread=100 num_game_per_thread=50 lr=0.0001 game=bridge env_actor_gen.params.gen_type=basic seed=1 
+python main2.py num_thread=100 num_game_per_thread=50 game=bridge env_actor_gen.params.gen_type=basic seed=1 \
     trainer=selfplay actor_gen.params.batchsize=512 method=a2c \
-    game.params.train_dataset=`pwd`/../bridge_data/dda.db \
+    game.params.train_dataset=`pwd`/../bridge_data/dda.db \ 
     game.params.test_dataset=`pwd`/../bridge_data/test.db \
     agent.params.explore_ratio=0.000625
 ```
-If not specified, the default baseline is `baseline16`.
+If not specified, the default baseline is `baseline16`. Here is some evaluation output after 3 epochs (note that performance may vary depending on your random seed and other factors, which is what happens in RL).
+
+```
+Finished creating 100 eval environments
+[2023-11-14 10:50:41,405][main2.py][INFO] - [3] Time spent = 671.07 s
+3:R              [10000]: avg:  -0.0003 (±   0.0001), min:  -0.0187[9474], max:   0.0170[6922]
+3:V              [10000]: avg:  -0.0003 (±   0.0000), min:  -0.0071[5170], max:   0.0063[9612]
+3:adv_err        [10000]: avg:   0.0113 (±   0.0000), min:   0.0068[7438], max:   0.0176[8674]
+3:eval_score_p0  [50000]: avg:   0.1256 (±   0.0011), min:  -0.7500[12930], max:   0.9167[8746]
+3:eval_score_p1  [50000]: avg:  -0.1256 (±   0.0011), min:  -0.9167[8746], max:   0.7500[12930]
+3:eval_score_p2  [50000]: avg:   0.1256 (±   0.0011), min:  -0.7500[12930], max:   0.9167[8746]
+3:eval_score_p3  [50000]: avg:  -0.1256 (±   0.0011), min:  -0.9167[8746], max:   0.7500[12930]
+3:grad_norm      [10000]: avg:   0.0264 (±   0.0000), min:   0.0141[7130], max:   0.0598[1167]
+3:loss           [10000]: avg:   0.0228 (±   0.0000), min:   0.0138[7438], max:   0.0355[8674]
+3:reward         [10000]: avg:   0.0000 (±   0.0000), min:  -0.0107[2929], max:   0.0114[8696]
+3:value_err      [10000]: avg:   0.0115 (±   0.0000), min:   0.0069[3999], max:   0.0178[8674]
+```
 
 ## Console play with pre-trained models
 ```
@@ -190,6 +206,11 @@ mean = 0.628, std = 0.1944979317253668
 
 Note that the original log had one bug that miscalculated the declarer (the declarer should be the first player calling for the strain of the final contract, rather than the last player who finalizes it). This affects the `Final reward` entry so a simple `grep "Final reward" [log file]` didn't give you the right answer. Instead we provide you with [compute_score.py](./compute_score.py) to compute the final score correctly, with the help of DDS table of the 1k games stored [here](./logs/against_WBridge5.raw). 
 
+## Double Dummy utility
+In the folder `./dds` is the double dummy utilities to quickly compute double dummy score given all hands and a contract. 
+
+## Visualization 
+In the folder `./vis` there is visualization utility to visualize the bidding process given a complete bidding sequence and their action probabilities, as well as the DD table. `./vis/server.py` is the server and `./vis/try.py` is the client.  
 
 # Simple Game
 
