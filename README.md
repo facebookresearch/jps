@@ -135,10 +135,11 @@ Here is the example output:
 ## Train model with self-play
 To train the model, run the following:
 ```
-python main2.py num_thread=200 game=bridge env_actor_gen.params.gen_type=basic seed=1 \
-    trainer=selfplay actor_gen.params.batchsize=1024 method=a2c \
+python main2.py num_thread=100 num_game_per_thread=50 lr=0.0001 game=bridge env_actor_gen.params.gen_type=basic seed=1 
+    trainer=selfplay actor_gen.params.batchsize=512 method=a2c \
     game.params.train_dataset=`pwd`/../bridge_data/dda.db \
-    game.params.test_dataset=`pwd`/../bridge_data/test.db
+    game.params.test_dataset=`pwd`/../bridge_data/test.db \
+    agent.params.explore_ratio=0.000625
 ```
 If not specified, the default baseline is `baseline16`.
 
